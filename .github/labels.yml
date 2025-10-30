@@ -1,0 +1,55 @@
+- name: feature
+  color: 1ABC9C
+  description: Новая функциональность
+
+- name: bug
+  color: E74C3C
+  description: Ошибка или баг
+
+- name: enhancement
+  color: 9B59B6
+  description: Улучшение существующего функционала
+
+- name: refactor
+  color: 34495E
+  description: Оптимизация кода без изменения логики
+
+- name: chore
+  color: 95A5A6
+  description: Поддерживающие задачи (зависимости, CI/CD)
+
+- name: frontend
+  color: E91E63
+  description: Клиентская часть
+
+- name: backend
+  color: 3498DB
+  description: Серверная логика
+
+- name: design
+  color: F1C40F
+  description: Макеты и UX/UI
+
+- name: docs
+  color: 2ECC71
+  description: Документация и описание
+
+- name: priority: high
+  color: E74C3C
+  description: Срочная и критичная задача
+
+- name: priority: medium
+  color: E67E22
+  description: Средний приоритет
+
+- name: priority: low
+  color: 2ECC71
+  description: Низкий приоритет
+
+- name: help wanted
+  color: F39C12
+  description: Нужна помощь
+
+- name: discussion
+  color: 8E44AD
+  description: Обсуждение идеи
