@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Sync labels
-        uses: peter-evans/create-or-update-labels@v2
+        uses: peter-evans/create-or-update-labels@v3
         with:
           repository: ${{ github.repository }}
           file: .github/labels.yml
