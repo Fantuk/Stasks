@@ -1,0 +1,21 @@
+name: Sync Labels
+
+on:
+  push:
+    branches:
+      - main   # или ветка, где лежит labels.yml
+  workflow_dispatch: # чтобы можно было запускать вручную
+
+jobs:
+  sync-labels:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Sync labels
+        uses: peter-evans/create-or-update-label@v2
+        with:
+          repository: ${{ github.repository }}
+          file: .github/labels.yml
+          token: ${{ secrets.GITHUB_TOKEN }}
