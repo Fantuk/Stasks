@@ -8,51 +8,58 @@ datasource db {
 }
 
 model Institution {
-  id    Int    @id @default(autoincrement())
-  name  String
-  users User[]
+  id   Int    @id @default(autoincrement())
+  name String
+  // users User[]
 
   @@map("institution")
 }
 
 model User {
-  id            Int     @id @default(autoincrement())
-  institutionId Int     @map("institution_id")
-  name          String
-  surname       String
-  patronymic    String
-  email         String  @unique
-  passwordHash  String  @map("password_hash")
-  isActivated   Boolean @default(false) @map("is_activated")
+  id          Int     @id @default(autoincrement())
+  // institutionId Int     @map("institution_id")
+  name        String
+  surname     String
+  patronymic  String
+  email       String  @unique
+  password    String
+  roles       Role[]
+  isActivated Boolean @default(false) @map("is_activated")
 
   // Отношения
-  institution Institution @relation(fields: [institutionId], references: [id])
-  userRoles   UserRole[]
-  moderator   Moderator?
-  teacher     Teacher?
-  student     Student?
+  // institution Institution @relation(fields: [institutionId], references: [id])
+  // userRoles   UserRole[]
+  moderator Moderator?
+  teacher   Teacher?
+  student   Student?
 
   @@map("user")
 }
 
-model Role {
-  id        Int        @id @default(autoincrement())
-  name      String
-  userRoles UserRole[]
-
-  @@map("roles")
+enum Role {
+  STUDENT
+  TEACHER
+  MODERATOR
 }
 
-model UserRole {
-  userId Int @map("user_id")
-  roleId Int @map("role_id")
+// model Role {
+//   id        Int        @id @default(autoincrement())
+//   name      String
+//   userRoles UserRole[]
 
-  user User @relation(fields: [userId], references: [id])
-  role Role @relation(fields: [roleId], references: [id])
+//   @@map("roles")
+// }
 
-  @@id([userId, roleId])
-  @@map("user_roles")
-}
+// model UserRole {
+//   userId Int @map("user_id")
+//   roleId Int @map("role_id")
+
+//   user User @relation(fields: [userId], references: [id])
+//   role Role @relation(fields: [roleId], references: [id])
+
+//   @@id([userId, roleId])
+//   @@map("user_roles")
+// }
 
 model Moderator {
   id           Int  @id @default(autoincrement())
