@@ -1,7 +1,7 @@
 import { Role } from '@prisma/client';
 import { IsEmail, IsNotEmpty, IsString, Length, IsEnum, IsOptional } from 'class-validator';
 
-export class RegisterDto {
+export class CreateUserDto {
   @IsNotEmpty({ message: 'Имя обязательно' })
   @IsString({ message: 'Имя должно быть строкой' })
   @Length(2, 30, { message: 'Имя должно быть от 2 до 30 символов' })
