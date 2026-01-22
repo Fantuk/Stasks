@@ -8,67 +8,60 @@ datasource db {
 }
 
 model Institution {
-  id   Int    @id @default(autoincrement())
-  name String
-  // users User[]
+  id    Int    @id @default(autoincrement())
+  name  String
+  users User[]
 
-  @@map("institution")
+  @@map("institutions")
 }
 
 model User {
-  id          Int     @id @default(autoincrement())
-  // institutionId Int     @map("institution_id")
-  name        String
-  surname     String
-  patronymic  String
-  email       String  @unique
-  password    String
-  roles       Role[]
-  isActivated Boolean @default(false) @map("is_activated")
+  id            Int     @id @default(autoincrement())
+  institutionId Int     @map("institution_id")
+  name          String
+  surname       String
+  patronymic    String?
+  email         String  @unique
+  password      String
+  roles         Role[]
+  isActivated   Boolean @default(false) @map("is_activated")
 
   // Отношения
-  // institution Institution @relation(fields: [institutionId], references: [id])
-  // userRoles   UserRole[]
-  moderator Moderator?
-  teacher   Teacher?
-  student   Student?
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  moderator   Moderator?
+  teacher     Teacher?
+  student     Student?
+  token       Token[]
 
-  @@map("user")
+  @@map("users")
 }
 
 enum Role {
+  ADMIN
   STUDENT
   TEACHER
   MODERATOR
 }
 
-// model Role {
-//   id        Int        @id @default(autoincrement())
-//   name      String
-//   userRoles UserRole[]
+model Token {
+  id      Int      @id @default(autoincrement())
+  token   String   @unique
+  expires DateTime
+  userId  Int      @map("user_id")
 
-//   @@map("roles")
-// }
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-// model UserRole {
-//   userId Int @map("user_id")
-//   roleId Int @map("role_id")
-
-//   user User @relation(fields: [userId], references: [id])
-//   role Role @relation(fields: [roleId], references: [id])
-
-//   @@id([userId, roleId])
-//   @@map("user_roles")
-// }
+  @@map("tokens")
+}
 
 model Moderator {
   id           Int  @id @default(autoincrement())
   userId       Int  @unique @map("user_id")
   accessRights Json @map("access_rights")
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("moderator")
+  @@map("moderators")
 }
 
 model Teacher {
@@ -76,9 +69,9 @@ model Teacher {
   userId          Int  @unique @map("user_id")
   mentoredGroupId Int? @unique @map("mentored_group_id")
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("teacher")
+  @@map("teachers")
 }
 
 model Student {
@@ -86,7 +79,7 @@ model Student {
   userId  Int  @unique @map("user_id")
   groupId Int? @map("group_id")
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("student")
+  @@map("students")
 }
