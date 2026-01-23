@@ -13,6 +13,8 @@ import { StudentModule } from 'src/student/application/student.module';
 import { HttpExceptionFilter } from 'src/common/filters/http-exception.filter';
 import { ResponseTransformInterceptor } from 'src/common/interceptors/response-transform.interceptor';
 import { ModeratorPermissionsGuard } from 'src/common/guards/moderator-permissions.guard';
+import { GroupModule } from './group/application/group.module';
+import { GroupModule } from './group/application/group.module';
 
 @Module({
   imports: [
@@ -26,6 +28,7 @@ import { ModeratorPermissionsGuard } from 'src/common/guards/moderator-permissio
     ModeratorModule,
     TeacherModule,
     StudentModule,
+    GroupModule,
   ],
   controllers: [],
   providers: [
@@ -47,4 +50,4 @@ import { ModeratorPermissionsGuard } from 'src/common/guards/moderator-permissio
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}
