@@ -11,6 +11,8 @@ model Institution {
   id    Int    @id @default(autoincrement())
   name  String
   users User[]
+  groups Group[]
+  subjects Subject[]
 
   @@map("institutions")
 }
@@ -26,7 +28,6 @@ model User {
   roles         Role[]
   isActivated   Boolean @default(false) @map("is_activated")
 
-  // Отношения
   institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   moderator   Moderator?
   teacher     Teacher?
@@ -70,6 +71,9 @@ model Teacher {
   mentoredGroupId Int? @unique @map("mentored_group_id")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group? @relation(fields: [mentoredGroupId], references: [id], onDelete: SetNull)
+  teacherSubjects TeacherSubject[]
+
 
   @@map("teachers")
 }
@@ -80,6 +84,59 @@ model Student {
   groupId Int? @map("group_id")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   @@map("students")
+}
+
+model Group {
+  id Int @id @default(autoincrement())
+  name String
+  institutionId Int @map("institution_id")
+
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  students Student[]
+  teacher Teacher?
+  subjectGroups SubjectGroup[]
+
+  @@map("groups")
+}
+
+model Subject {
+  id Int @id @default(autoincrement())
+  institutionId Int @map("institution_id")
+  name String
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  subjectGroups SubjectGroup[]
+  teacherSubjects TeacherSubject[]
+  
+  @@map("subjects")
+}
+
+model SubjectGroup {
+  id Int @id @default(autoincrement())
+  subjectId Int @map("subject_id")
+  groupId Int @map("group_id")
+
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([subjectId, groupId])
+
+  @@map("subject_groups")
+}
+
+model TeacherSubject {
+  id Int @id @default(autoincrement())
+  teacherId Int @map("teacher_id")
+  subjectId Int @map("subject_id")
+
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, subjectId])
+
+  @@map("teacher_subjects")
 }
