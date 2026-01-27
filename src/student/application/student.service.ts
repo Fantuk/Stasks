@@ -11,6 +11,7 @@ import type { IStudentRepository } from 'src/student/domain/student-repository.i
 import { ICreateStudentParams } from 'src/student/application/interfaces/interfaces';
 import { Student } from 'src/student/domain/entities/student.entity';
 import { UserService } from 'src/user/application/user.service';
+import { GroupService } from 'src/group/application/group.service';
 
 @Injectable()
 export class StudentService {
@@ -20,12 +21,14 @@ export class StudentService {
     private readonly studentRepository: IStudentRepository,
     @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
+    @Inject(forwardRef(() => GroupService))
+    private readonly groupService: GroupService,
   ) { }
 
   async create(student: ICreateStudentParams): Promise<Student> {
     this.logger.log(`Создание студента ${student.userId}`);
     if (student.groupId) {
-      await this.validateGroupExists(student.groupId);
+      await this.validateGroupExists(student.groupId, student.institutionId);
     }
 
     const createdStudent = Student.create({
@@ -109,7 +112,7 @@ export class StudentService {
       throw new BadRequestException('Студент уже находится в этой группе');
     }
 
-    await this.validateGroupExists(groupId);
+    await this.validateGroupExists(groupId, institutionId);
 
     student.assignToGroup(groupId);
     return this.studentRepository.update(userId, student);
@@ -146,14 +149,13 @@ export class StudentService {
     await this.studentRepository.remove(userId);
   }
 
-  private async validateGroupExists(groupId: number): Promise<void> {
-    // TODO: когда добавишь Groups
-    // const group = await this.groupRepository.findById(groupId);
-    // if (!group) throw new BadRequestException('Group not found');
-
-    // Пока просто проверяем, что ID положительный
-    if (groupId <= 0) {
-      throw new BadRequestException('Invalid group ID');
+  private async validateGroupExists(groupId: number, institutionId?: number): Promise<void> {
+    const group = await this.groupService.findById(groupId, institutionId);
+    if (!group) {
+      throw new BadRequestException('Группа не найдена');
+    }
+    if (institutionId !== undefined && group.institutionId !== institutionId) {
+      throw new ForbiddenException('Группа не принадлежит вашему учреждению');
     }
   }
 }
