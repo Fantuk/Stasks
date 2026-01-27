@@ -91,7 +91,7 @@ model Student {
 
 model Group {
   id Int @id @default(autoincrement())
-  name String
+  name String @unique
   institutionId Int @map("institution_id")
 
 
