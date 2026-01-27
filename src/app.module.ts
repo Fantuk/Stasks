@@ -12,8 +12,6 @@ import { TeacherModule } from 'src/teacher/application/teacher.module';
 import { StudentModule } from 'src/student/application/student.module';
 import { HttpExceptionFilter } from 'src/common/filters/http-exception.filter';
 import { ResponseTransformInterceptor } from 'src/common/interceptors/response-transform.interceptor';
-import { ModeratorPermissionsGuard } from 'src/common/guards/moderator-permissions.guard';
-import { GroupModule } from './group/application/group.module';
 import { GroupModule } from './group/application/group.module';
 
 @Module({
