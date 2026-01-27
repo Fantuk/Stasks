@@ -4,6 +4,7 @@ import { TeacherController } from 'src/teacher/application/teacher.controller';
 import { TeacherRepository } from 'src/teacher/infrastructure/prisma/teacher.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UserModule } from 'src/user/application/user.module';
+import { GroupModule } from 'src/group/application/group.module';
 
 @Module({
   controllers: [TeacherController],
@@ -16,6 +17,9 @@ import { UserModule } from 'src/user/application/user.module';
     },
   ],
   exports: [TeacherService],
-  imports: [forwardRef(() => UserModule)],
+  imports: [
+    forwardRef(() => UserModule),
+    forwardRef(() => GroupModule),
+  ],
 })
-export class TeacherModule {}
+export class TeacherModule { }
