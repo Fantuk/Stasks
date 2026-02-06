@@ -8,6 +8,11 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { User } from 'src/user/domain/entities/user.entity';
 import { ISearchUsersParams, IUserRepository } from 'src/user/domain/user-repository.interface';
 import { Prisma, Role } from '@prisma/client';
+import { Student } from 'src/student/domain/entities/student.entity';
+import { Teacher } from 'src/teacher/domain/entities/teacher.entity';
+import { IModeratorAccessRights, Moderator } from 'src/moderator/domain/entities/moderator.entity';
+import { IUserWithProfiles } from 'src/user/domain/user-repository.interface';
+import { IFindUserOptions } from 'src/common/interfaces/find-options.interface';
 
 @Injectable()
 export class UserRepository implements IUserRepository {
@@ -71,20 +76,36 @@ export class UserRepository implements IUserRepository {
     return rawUser ? this.mapToDomain(rawUser) : null;
   }
 
-  async findById(id: number): Promise<User | null> {
+  async findById(id: number, options?: IFindUserOptions): Promise<IUserWithProfiles | null> {
+    const include = buildUserInclude(options);
     const rawUser = await this.prisma.user.findUnique({
       where: { id },
-      select: this.userSelect,
+      select: include
+        ? { ...this.userSelect, student: true, teacher: true, moderator: true }
+        : this.userSelect,
     });
+    if (!rawUser) return null;
 
-    return rawUser ? this.mapToDomain(rawUser) : null;
+    const user = this.mapToDomain(rawUser as Prisma.UserGetPayload<{}>);
+    const result: IUserWithProfiles = { user };
+
+    if (include?.student && 'student' in rawUser && rawUser.student)
+      result.student = mapRawToStudent(rawUser.student as Prisma.StudentGetPayload<{}>);
+    if (include?.teacher && 'teacher' in rawUser && rawUser.teacher)
+      result.teacher = mapRawToTeacher(rawUser.teacher as Prisma.TeacherGetPayload<{}>);
+    if (include?.moderator && 'moderator' in rawUser && rawUser.moderator)
+      result.moderator = mapRawToModerator(rawUser.moderator as Prisma.ModeratorGetPayload<{}>);
+
+    return result;
   }
 
   async findByInstitutionId(
     institutionId: number,
     page?: number,
     limit?: number,
-  ): Promise<{ users: User[]; total: number }> {
+    options?: IFindUserOptions,
+  ): Promise<{ users: IUserWithProfiles[]; total: number }> {
+    const includeOptions = buildUserInclude(options);
     const skip = page && limit ? (page - 1) * limit : undefined;
     const take = limit;
 
@@ -94,16 +115,28 @@ export class UserRepository implements IUserRepository {
 
     const rawUsers = await this.prisma.user.findMany({
       where: { institutionId },
-      select: this.userSelect,
+      select: includeOptions
+        ? { ...this.userSelect, student: true, teacher: true, moderator: true }
+        : this.userSelect,
       skip,
       take,
       orderBy: { id: 'asc' },
     });
 
-    return {
-      users: rawUsers.map(this.mapToDomain),
-      total,
-    };
+
+    const users: IUserWithProfiles[] = rawUsers.map((raw) => {
+      const u = this.mapToDomain(raw as Prisma.UserGetPayload<{}>);
+      const item: IUserWithProfiles = { user: u };
+      if (includeOptions?.student && 'student' in raw && raw.student) item.student =
+        mapRawToStudent(raw.student as Prisma.StudentGetPayload<{}>);
+      if (includeOptions?.teacher && 'teacher' in raw && raw.teacher) item.teacher =
+        mapRawToTeacher(raw.teacher as Prisma.TeacherGetPayload<{}>);
+      if (includeOptions?.moderator && 'moderator' in raw && raw.moderator) item.moderator =
+        mapRawToModerator(raw.moderator as Prisma.ModeratorGetPayload<{}>);
+      return item;
+    });
+
+    return { users, total };
   }
 
   async findAll(): Promise<User[]> {
@@ -114,8 +147,9 @@ export class UserRepository implements IUserRepository {
     return rawUsers.map(this.mapToDomain);
   }
 
-  async search(params: ISearchUsersParams): Promise<{ users: User[]; total: number; }> {
-    const { institutionId, query, roles, page, limit } = params
+  async search(params: ISearchUsersParams): Promise<{ users: IUserWithProfiles[]; total: number; }> {
+    const { institutionId, query, roles, page, limit, include } = params;
+    const includeOptions = buildUserInclude(include);
 
     const where: Prisma.UserWhereInput = {
       institutionId
@@ -146,16 +180,27 @@ export class UserRepository implements IUserRepository {
 
     const rawUsers = await this.prisma.user.findMany({
       where,
-      select: this.userSelect,
+      select: includeOptions
+        ? { ...this.userSelect, student: true, teacher: true, moderator: true }
+        : this.userSelect,
       skip,
       take,
       orderBy: { id: 'asc' },
     })
 
-    return {
-      users: rawUsers.map(this.mapToDomain),
-      total,
-    }
+    const users: IUserWithProfiles[] = rawUsers.map((raw) => {
+      const u = this.mapToDomain(raw as Prisma.UserGetPayload<{}>);
+      const item: IUserWithProfiles = { user: u };
+      if (includeOptions?.student && 'student' in raw && raw.student) item.student =
+        mapRawToStudent(raw.student as Prisma.StudentGetPayload<{}>);
+      if (includeOptions?.teacher && 'teacher' in raw && raw.teacher) item.teacher =
+        mapRawToTeacher(raw.teacher as Prisma.TeacherGetPayload<{}>);
+      if (includeOptions?.moderator && 'moderator' in raw && raw.moderator) item.moderator =
+        mapRawToModerator(raw.moderator as Prisma.ModeratorGetPayload<{}>);
+      return item;
+    });
+
+    return { users, total };
   }
 
   async update(id: number, data: Partial<Omit<User, 'id'>>): Promise<User> {
@@ -176,4 +221,29 @@ export class UserRepository implements IUserRepository {
   async remove(id: number): Promise<void> {
     await this.prisma.user.delete({ where: { id } });
   }
+}
+
+function buildUserInclude(options?: IFindUserOptions) {
+  if (!options?.include?.length) return undefined;
+  const include: { student?: boolean, teacher?: boolean, moderator?: boolean } = {};
+  if (options.include.includes('student')) include.student = true;
+  if (options.include.includes('teacher')) include.teacher = true;
+  if (options.include.includes('moderator')) include.moderator = true;
+  return Object.keys(include).length > 0 ? include : undefined;
+}
+
+function mapRawToStudent(raw: { id: number; userId: number; groupId: number | null }): Student {
+  return Student.fromPersistence(raw);
+}
+
+function mapRawToTeacher(raw: { id: number; userId: number; mentoredGroupId: number | null }): Teacher {
+  return Teacher.fromPersistence(raw);
+}
+
+function mapRawToModerator(raw: { id: number; userId: number; accessRights: unknown }): Moderator {
+  return Moderator.fromPersistence({
+    id: raw.id,
+    userId: raw.userId,
+    accessRights: raw.accessRights as IModeratorAccessRights | null,
+  });
 }
