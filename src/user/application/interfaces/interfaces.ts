@@ -4,6 +4,10 @@ import { IModeratorAccessRights } from 'src/moderator/domain/entities/moderator.
 import { ICreateStudentParams } from 'src/student/application/interfaces/interfaces';
 import { ICreateTeacherParams } from 'src/teacher/application/interfaces/interfaces';
 
+import { IStudentResponse } from 'src/student/domain/entities/student.entity';
+import { ITeacherResponse } from 'src/teacher/domain/entities/teacher.entity';
+import { IModeratorResponse } from 'src/moderator/domain/entities/moderator.entity';
+
 export interface ICreateUserParams {
   institutionId?: number;
   name: string;
@@ -37,3 +41,9 @@ export interface IFullUser {
   teacher?: ICreateTeacherParams | null;
   student?: ICreateStudentParams | null;
 }
+
+export type UserWithProfilesResponse = UserResponse & {
+  student?: IStudentResponse;
+  teacher?: ITeacherResponse;
+  moderator?: IModeratorResponse;
+};
