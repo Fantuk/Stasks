@@ -1,16 +1,15 @@
-import { IsOptional, IsString, IsEnum } from 'class-validator';
-import { PaginationDto } from 'src/common/dto/pagination.dto';
+import { IsOptional, IsEnum, IsString } from 'class-validator';
 import { Role } from '@prisma/client';
+import { SearchQueryDto } from 'src/common/dto/search-query.dto';
 
-export class SearchUsersDto extends PaginationDto {
-    @IsOptional()
-    @IsString({ message: 'Поисковый запрос должен быть строкой' })
-    query?: string;
+export class SearchUsersDto extends SearchQueryDto {
+  @IsOptional()
+  @IsEnum(Role, {
+    message: 'Роль может быть только STUDENT, TEACHER, MODERATOR, ADMIN',
+  })
+  roles?: Role;
 
-    @IsOptional()
-    @IsEnum(Role, {
-        each: true,
-        message: 'Роль может быть только "STUDENT", "TEACHER", "MODERATOR"',
-    })
-    roles?: Role;
+  @IsOptional()
+  @IsString()
+  include?: string;
 }
