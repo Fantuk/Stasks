@@ -14,6 +14,8 @@ import {
 } from 'src/moderator/domain/entities/moderator.entity';
 import { ICreateModeratorParams } from './interfaces/interfaces';
 import { UserService } from 'src/user/application/user.service';
+import { IFindOneOptions } from 'src/common/interfaces/find-options.interface';
+import { shouldIncludeUser } from 'src/common/utils/query.utils';
 
 @Injectable()
 export class ModeratorService {
@@ -46,16 +48,13 @@ export class ModeratorService {
   async findByUserId(
     userId: number,
     institutionId?: number,
-    includeUser?: boolean,
+    options?: IFindOneOptions,
   ): Promise<Moderator | null> {
+    const includeUser = shouldIncludeUser(options);
     const moderator = this.moderatorRepository.findByUserId(userId, {
-      includeUser: includeUser ?? false,
+      includeUser,
     });
-
-    if (!moderator) {
-      return null;
-    }
-
+    if (!moderator) return null;
     if (institutionId !== undefined) {
       const user = await this.userService.findById(userId, institutionId);
       if (!user) {
