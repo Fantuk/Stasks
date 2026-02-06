@@ -106,7 +106,7 @@ model Group {
 model Subject {
   id Int @id @default(autoincrement())
   institutionId Int @map("institution_id")
-  name String
+  name String @unique
 
   institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   subjectGroups SubjectGroup[]
