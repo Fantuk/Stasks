@@ -5,6 +5,9 @@ import { UpdateGroupDto } from 'src/group/application/dto/update-group.dto';
 import { CreateGroupDto } from 'src/group/application/dto/create-group.dto';
 import { StudentService } from 'src/student/application/student.service';
 import { TeacherService } from 'src/teacher/application/teacher.service';
+import { IFindOneOptions } from 'src/common/interfaces/find-options.interface';
+import { shouldIncludeMembers } from 'src/common/utils/query.utils';
+import { PaginatedResult } from 'src/common/dto/pagination.dto';
 
 @Injectable()
 export class GroupService {
@@ -25,18 +28,30 @@ export class GroupService {
         return this.mapToResponse(created)
     }
 
-    async findById(id: number, institutionId?: number) {
-        const group = await this.groupRepository.findById(id)
-        if (!group) {
-            throw new NotFoundException('Группа не найдена')
-        }
+    async findById(
+        id: number,
+        institutionId?: number,
+        options?: IFindOneOptions,
+    ) {
+        const group = await this.groupRepository.findById(id);
+        if (!group) return null;
 
         if (institutionId !== undefined && group.institutionId !== institutionId) {
-            throw new ForbiddenException(
-                'Нет доступа к группе из другого учреждения',
-            );
+            throw new ForbiddenException('Нет доступа к группе из другого учреждения');
         }
-        return this.mapToResponse(group)
+
+        const base = this.mapToResponse(group);
+        if (!shouldIncludeMembers(options)) return base;
+
+        const [teacher, students] = await Promise.all([
+            this.teacherService.findByMentoredGroupId(id, institutionId, true),
+            this.studentService.findByGroupId(id, institutionId, { includeUser: true } as IFindOneOptions),
+        ]);
+        return {
+            ...base,
+            teacher: teacher?.toResponse(true) ?? null,
+            students: students.map((s) => s.toResponse(true)),
+        };
     }
 
     async findByInstitutionId(
@@ -61,11 +76,22 @@ export class GroupService {
         }
     }
 
-    async findByIdWithMembers(id: number, institutionId: number) {
-        const group = await this.findById(id, institutionId);
+    async findByName(name: string, institutionId: number) {
+        const group = await this.groupRepository.findByName(name, institutionId);
+
+        if (!group) {
+            throw new NotFoundException('Группа не найдена')
+        }
+
+        if (institutionId !== undefined && group.institutionId !== institutionId) {
+            throw new ForbiddenException(
+                'Нет доступа к группе из другого учреждения',
+            );
+        }
+
         const [teacher, students] = await Promise.all([
-            this.teacherService.findByMentoredGroupId(id, institutionId, true),
-            this.studentService.findByGroupId(id, institutionId, true),
+            this.teacherService.findByMentoredGroupId(group.id!, institutionId, true),
+            this.studentService.findByGroupId(group.id!, institutionId, { includeUser: true } as IFindOneOptions),
         ]);
         return {
             ...group,
@@ -73,6 +99,33 @@ export class GroupService {
             students: students.map((s) => s.toResponse(true)),
         };
     }
+
+    async findBySubjectId(
+        subjectId: number,
+        institutionId?: number,
+    ): Promise<Group[]> {
+        const groups = await this.groupRepository.findBySubjectId(subjectId, institutionId);
+        return groups.filter((g) => g.institutionId === institutionId);
+    }
+
+    async search(params: {
+        institutionId: number;
+        query?: string;
+        page?: number;
+        limit?: number;
+      }): Promise<PaginatedResult<ReturnType<Group['toResponse']>>> {
+        const { groups, total } = await this.groupRepository.search(params);
+        const page = params.page ?? 1;
+        const limit = params.limit ?? 10;
+        const totalPages = Math.ceil(total / limit);
+        return {
+          data: groups.map((g) => this.mapToResponse(g)),
+          total,
+          page,
+          limit,
+          totalPages,
+        };
+      }
 
     async update(id: number, updateDto: UpdateGroupDto, institutionId?: number) {
         const existing = await this.groupRepository.findById(id)
