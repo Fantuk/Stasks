@@ -13,6 +13,7 @@ import { StudentModule } from 'src/student/application/student.module';
 import { HttpExceptionFilter } from 'src/common/filters/http-exception.filter';
 import { ResponseTransformInterceptor } from 'src/common/interceptors/response-transform.interceptor';
 import { GroupModule } from './group/application/group.module';
+import { SubjectModule } from './subject/application/subject.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { GroupModule } from './group/application/group.module';
     TeacherModule,
     StudentModule,
     GroupModule,
+    SubjectModule,
   ],
   controllers: [],
   providers: [
