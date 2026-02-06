@@ -24,7 +24,9 @@ import type { IAccessToken } from 'src/token/application/interfaces/interfaces';
 import { ApiSuccessResponse } from 'src/common/interfaces/api-responce.interface';
 import { UserResponse } from 'src/user/application/interfaces/interfaces';
 import { SearchUsersDto } from 'src/user/application/dto/search-users.dto';
+import { GetMeDto } from 'src/user/application/dto/get-me.dto';
 import { ModeratorPermissions } from 'src/common/decorators/moderator-permissions.decorator';
+import { parseUserIncludeOption } from 'src/common/utils/query.utils';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -52,6 +54,7 @@ export class UserController {
     @GetUser() user: IAccessToken,
   ): Promise<ApiSuccessResponse<UserResponse[]>> {
     const roles: Role[] | undefined = searchDto.roles ? [searchDto.roles] : undefined;
+    const includeOptions = parseUserIncludeOption(searchDto.include);
 
     const foundedUsers = await this.userService.search({
       institutionId: user.institutionId,
@@ -59,7 +62,8 @@ export class UserController {
       roles,
       page: searchDto.page,
       limit: searchDto.limit,
-    })
+      include: includeOptions,
+    });
 
     return {
       success: true,
@@ -68,9 +72,24 @@ export class UserController {
         page: foundedUsers.page,
         limit: foundedUsers.limit,
         total: foundedUsers.total,
-        totalPages: foundedUsers.totalPages,
+        totalPages: foundedUsers.totalPages
       },
     };
+  }
+
+  /** Текущий пользователь: любой авторизованный (роль не проверяется) */
+  @Get('me')
+  @Roles()
+  async getMe(
+    @GetUser() user: IAccessToken,
+    @Query() query: GetMeDto,
+  ): Promise<ApiSuccessResponse<UserResponse>> {
+    const userId = user.userId;
+    if (userId == null) throw new NotFoundException('Пользователь не найден');
+    const includeOptions = parseUserIncludeOption(query.include);
+    const me = await this.userService.findById(userId, user.institutionId, includeOptions);
+    if (!me) throw new NotFoundException('Пользователь не найден');
+    return { success: true, data: me };
   }
 
   @Get()
@@ -99,15 +118,12 @@ export class UserController {
   async findById(
     @Param('id', ParseIntPipe) id: number,
     @GetUser() user: IAccessToken,
+    @Query('include') include?: string,
   ): Promise<ApiSuccessResponse<UserResponse>> {
-    const foundedUser = await this.userService.findById(id, user.institutionId);
-    if (!foundedUser) {
-      throw new NotFoundException('Пользователь не найден')
-    }
-    return {
-      success: true,
-      data: foundedUser,
-    };
+    const includeOptions = parseUserIncludeOption(include);
+    const foundedUser = await this.userService.findById(id, user.institutionId, includeOptions);
+    if (!foundedUser) throw new NotFoundException('Пользователь не найден');
+    return { success: true, data: foundedUser };
   }
 
   @Patch(':id')
