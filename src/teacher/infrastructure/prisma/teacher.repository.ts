@@ -46,6 +46,12 @@ export class TeacherRepository implements ITeacherRepository {
     }
   }
 
+  async findById(id: number, options?: FindTeacherOptions): Promise<Teacher | null> {
+    const include = options?.includeUser ? { user: true } : undefined;
+    const raw = await this.prisma.teacher.findUnique({ where: { id }, include });
+    return raw ? this.mapToDomain(raw, options?.includeUser) : null;
+  }
+
   async findByUserId(userId: number, options?: FindTeacherOptions): Promise<Teacher | null> {
     const include = options?.includeUser ? { user: true } : undefined;
     const raw = await this.prisma.teacher.findUnique({ where: { userId }, include });
@@ -59,6 +65,24 @@ export class TeacherRepository implements ITeacherRepository {
       include,
     });
     return raw ? this.mapToDomain(raw, options?.includeUser) : null;
+  }
+
+  async findBySubjectId(
+    subjectId: number,
+    options?: FindTeacherOptions,
+    institutionId?: number
+  ): Promise<Teacher[]> {
+    const include = options?.includeUser ? { user: true } : undefined;
+    const raw = await this.prisma.teacher.findMany({
+      where: {
+        teacherSubjects: { some: { subjectId } },
+        ...(institutionId !== undefined && {
+          user: { institutionId },
+        }),
+      },
+      include,
+    });
+    return raw.map((r) => this.mapToDomain(r, options?.includeUser));
   }
 
   async update(userId: number, teacher: Teacher): Promise<Teacher> {
