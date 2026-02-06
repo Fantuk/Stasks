@@ -19,6 +19,7 @@ import { RolesGuard } from 'src/common/guards/roles.guard';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import type { IAccessToken } from 'src/token/application/interfaces/interfaces';
 import { ApiSuccessResponse } from 'src/common/interfaces/api-responce.interface';
+import { parseIncludeOption } from 'src/common/utils/query.utils';
 
 @Controller('moderator')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -27,25 +28,23 @@ export class ModeratorController {
 
   @Get(':userId')
   @Roles(Role.ADMIN, Role.MODERATOR)
-  async findOne(
+  async findById(
     @Param('userId', ParseIntPipe) userId: number,
     @GetUser() user: IAccessToken,
-    @Query('includeUser', new ParseBoolPipe({ optional: true })) includeUser?: boolean,
+    @Query('include') include?: string,
   ): Promise<ApiSuccessResponse<IModeratorResponse>> {
+    const options = parseIncludeOption(include);
     const moderator = await this.moderatorService.findByUserId(
       userId,
       user.institutionId,
-      includeUser ?? false,
+      options,
     );
 
-    if (!moderator) {
-      throw new NotFoundException('Модератор не найден по id ' + userId);
-    }
-
+    if (!moderator) throw new NotFoundException('Модератор не найден по id ' + userId);
+    const includeUser = options?.include?.includes('user') ?? false;
     return {
       success: true,
-      data: moderator.toResponse(includeUser ?? false),
-      message: 'Модератор успешно найден',
+      data: moderator.toResponse(includeUser),
     };
   }
 
