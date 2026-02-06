@@ -40,24 +40,24 @@ export class AuthTokensService {
     const oldToken =
       await this.tokenService.validateRefreshToken(refreshTokenString);
 
-    const user = await this.userRepository.findById(oldToken.userId);
+    const result = await this.userRepository.findById(oldToken.userId);
 
-    if (!user) {
+    if (!result) {
       await this.tokenService.removeToken(refreshTokenString);
       throw new NotFoundException('Пользователь не найден');
     }
 
-    if (!user.id) {
+    if (!result.user.id) {
       throw new BadRequestException('Id отсутствует');
     }
 
-    const patronymic = user.patronymic ?? null;
+    const patronymic = result.user.patronymic ?? null;
 
     const newRefreshToken =
       await this.tokenService.rotateRefreshToken(refreshTokenString);
 
     const accessToken = this.generateAccessTokenForUser({
-      ...user.toResponse(),
+      ...result.user.toResponse(),
       patronymic,
     });
 
