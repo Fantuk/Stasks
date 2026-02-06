@@ -21,6 +21,7 @@ import { GetUser } from 'src/common/decorators/get-user.decorator';
 import type { IAccessToken } from 'src/token/application/interfaces/interfaces';
 import { ApiSuccessResponse } from 'src/common/interfaces/api-responce.interface';
 import { ITeacherResponse } from 'src/teacher/domain/entities/teacher.entity';
+import { parseIncludeOption } from 'src/common/utils/query.utils';
 
 @Controller('teacher')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -28,24 +29,23 @@ import { ITeacherResponse } from 'src/teacher/domain/entities/teacher.entity';
 export class TeacherController {
   constructor(private readonly teacherService: TeacherService) { }
 
-  @Get(':userId')
-  async findOne(
-    @Param('userId', ParseIntPipe) userId: number,
+  @Get(':id')
+  async findById(
+    @Param('id', ParseIntPipe) id: number,
     @GetUser() user: IAccessToken,
-    @Query('includeUser', new ParseBoolPipe({ optional: true })) includeUser?: boolean,
+    @Query('include') include?: string,
   ): Promise<ApiSuccessResponse<ITeacherResponse>> {
+    const options = parseIncludeOption(include);
     const teacher = await this.teacherService.findByUserId(
-      userId,
+      id,
       user.institutionId,
-      includeUser ?? false,
+      options,
     );
-
-    if (!teacher) {
-      throw new NotFoundException('Преподаватель не найден по id ' + userId);
-    }
+    if (!teacher) throw new NotFoundException('Преподаватель не найден по id ' + id);
+    const includeUser = options?.include?.includes('user') ?? false;
     return {
       success: true,
-      data: teacher.toResponse(includeUser ?? false),
+      data: teacher.toResponse(includeUser),
     };
   }
 
