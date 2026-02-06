@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { hash, genSalt } from 'bcrypt';
 import { User } from 'src/user/domain/entities/user.entity';
-import type { ISearchUsersParams, IUserRepository } from 'src/user/domain/user-repository.interface';
+import type { ISearchUsersParams, IUserRepository, IUserWithProfiles } from 'src/user/domain/user-repository.interface';
 import { ModeratorService } from 'src/moderator/application/moderator.service';
 import { TeacherService } from 'src/teacher/application/teacher.service';
 import { StudentService } from 'src/student/application/student.service';
@@ -18,11 +18,13 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import {
   ICreateUserParams,
   IFullUser,
+  UserWithProfilesResponse,
 } from 'src/user/application/interfaces/interfaces';
 import { Role } from '@prisma/client';
 import { ICreateModeratorParams } from 'src/moderator/application/interfaces/interfaces';
 import { ICreateStudentParams } from 'src/student/application/interfaces/interfaces';
 import { ICreateTeacherParams } from 'src/teacher/application/interfaces/interfaces';
+import { IFindUserOptions } from 'src/common/interfaces/find-options.interface';
 
 @Injectable()
 export class UserService {
@@ -113,18 +115,11 @@ export class UserService {
     return users.map(this.mapToResponse);
   }
 
-  async findById(id: number, institutionId?: number) {
-    const user = await this.userRepository.findById(id);
-
-    if (!user) {
-      return null;
-    }
-
-    if (institutionId !== undefined && user.institutionId !== institutionId) {
-      return null;
-    }
-
-    return this.mapToResponse(user);
+  async findById(id: number, institutionId?: number, options?: IFindUserOptions) {
+    const result = await this.userRepository.findById(id, options);
+    if (!result) return null;
+    if (institutionId !== undefined && result.user.institutionId !== institutionId) return null;
+    return this.mapToResponseWithProfiles(result);
   }
 
   async findByInstitutionId(
@@ -143,7 +138,7 @@ export class UserService {
     const totalPages = Math.ceil(total / pageLimit);
 
     return {
-      data: users.map(this.mapToResponse),
+      data: users.map((item) => this.mapToResponse(item.user)),
       total,
       page: currentPage,
       limit: pageLimit,
@@ -155,29 +150,35 @@ export class UserService {
     userId: number,
     institutionId?: number,
   ): Promise<IFullUser> {
-    const user = await this.findById(userId, institutionId);
+    const data = await this.findById(userId, institutionId);  // UserWithProfilesResponse | null
 
-    if (!user) {
+    if (!data) {
       throw new NotFoundException('Пользователь не найден');
     }
 
-    const result: IFullUser = { user };
+    const result: IFullUser = {
+      user: {
+        id: data.id,
+        institutionId: data.institutionId,
+        name: data.name,
+        surname: data.surname,
+        patronymic: data.patronymic,
+        email: data.email,
+        roles: data.roles,
+        isActivated: data.isActivated,
+      },
+    };
 
-    if (user.roles.includes(Role.MODERATOR)) {
+    if (data.roles.includes(Role.MODERATOR)) {
       result.moderator = await this.moderatorService.findByUserId(userId);
     }
-
-    if (user.roles.includes(Role.TEACHER)) {
+    if (data.roles.includes(Role.TEACHER)) {
       const teacher = await this.teacherService.findByUserId(userId);
       result.teacher = teacher
-        ? {
-          userId: teacher.userId,
-          mentoredGroupId: teacher.toResponse().mentoredGroupId,
-        }
+        ? { userId: teacher.userId, mentoredGroupId: teacher.toResponse().mentoredGroupId }
         : null;
     }
-
-    if (user.roles.includes(Role.STUDENT)) {
+    if (data.roles.includes(Role.STUDENT)) {
       result.student = await this.studentService.findByUserId(userId);
     }
 
@@ -192,7 +193,7 @@ export class UserService {
     const totalPages = Math.ceil(total / pageLimit)
 
     return {
-      data: users.map(this.mapToResponse),
+      data: users.map((item) => this.mapToResponseWithProfiles(item)),
       total,
       page: currentPage,
       limit: pageLimit,
@@ -205,10 +206,11 @@ export class UserService {
     updateUserDto: UpdateUserDto,
     institutionId?: number,
   ) {
-    const existingUser = await this.userRepository.findById(id);
-    if (!existingUser) {
+    const result = await this.userRepository.findById(id);
+    if (!result) {
       throw new NotFoundException('Пользователь не найден');
     }
+    const existingUser = result.user;
 
     if (
       institutionId !== undefined &&
@@ -305,7 +307,6 @@ export class UserService {
       throw new BadRequestException(`Пользователь не имеет роли ${role}`);
     }
 
-    // Нельзя удалить последнюю роль
     if (user.roles.length === 1) {
       throw new BadRequestException('Нельзя удалить последнюю роль');
     }
@@ -319,7 +320,6 @@ export class UserService {
         await tx.student.delete({ where: { userId } }).catch(() => { });
       }
 
-      // Обновляем роли пользователя
       const updatedRoles = user.roles.filter((r) => r !== role);
       return this.userRepository.update(userId, {
         roles: updatedRoles,
@@ -344,8 +344,18 @@ export class UserService {
   }
 
   private readonly roleConflicts: [Role, Role][] = [
-    [Role.MODERATOR, Role.TEACHER],
+    [Role.ADMIN, Role.MODERATOR],
+    [Role.ADMIN, Role.STUDENT],
     [Role.MODERATOR, Role.STUDENT],
     [Role.TEACHER, Role.STUDENT],
   ];
+
+  private mapToResponseWithProfiles(data: IUserWithProfiles): UserWithProfilesResponse {
+    const user = data.user.toResponse();
+    const result: UserWithProfilesResponse = { ...user };
+    if (data.student) result.student = data.student.toResponse(false);
+    if (data.teacher) result.teacher = data.teacher.toResponse(false);
+    if (data.moderator) result.moderator = data.moderator.toResponse(false);
+    return result;
+  }
 }
