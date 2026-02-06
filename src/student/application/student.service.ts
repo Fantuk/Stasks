@@ -12,6 +12,8 @@ import { ICreateStudentParams } from 'src/student/application/interfaces/interfa
 import { Student } from 'src/student/domain/entities/student.entity';
 import { UserService } from 'src/user/application/user.service';
 import { GroupService } from 'src/group/application/group.service';
+import { IFindOneOptions } from 'src/common/interfaces/find-options.interface';
+import { shouldIncludeUser } from 'src/common/utils/query.utils';
 
 @Injectable()
 export class StudentService {
@@ -42,15 +44,13 @@ export class StudentService {
   async findByUserId(
     userId: number,
     institutionId?: number,
-    includeUser?: boolean,
+    options?: IFindOneOptions,
   ): Promise<Student | null> {
+    const includeUser = shouldIncludeUser(options);
     const student = await this.studentRepository.findByUserId(userId, {
-      includeUser: includeUser ?? false,
+      includeUser,
     });
-    if (!student) {
-      return null;
-    }
-
+    if (!student)return null;
     if (institutionId !== undefined) {
       const user = await this.userService.findById(userId, institutionId);
       if (!user) {
@@ -65,10 +65,11 @@ export class StudentService {
   async findByGroupId(
     groupId: number,
     institutionId?: number,
-    includeUser?: boolean,
+    options?: IFindOneOptions,
   ): Promise<Student[]> {
-    const students = this.studentRepository.findByGroupId(groupId, {
-      includeUser: includeUser ?? false,
+    const includeUser = shouldIncludeUser(options);
+    const students = await this.studentRepository.findByGroupId(groupId, {
+      includeUser,
     });
 
     if (institutionId !== undefined) {
