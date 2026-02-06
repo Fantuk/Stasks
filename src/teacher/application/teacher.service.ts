@@ -13,6 +13,8 @@ import { Teacher } from 'src/teacher/domain/entities/teacher.entity';
 import { ICreateTeacherParams } from './interfaces/interfaces';
 import { UserService } from 'src/user/application/user.service';
 import { GroupService } from 'src/group/application/group.service';
+import { IFindOneOptions } from 'src/common/interfaces/find-options.interface';
+import { shouldIncludeUser } from 'src/common/utils/query.utils';
 
 @Injectable()
 export class TeacherService {
@@ -40,26 +42,39 @@ export class TeacherService {
     return this.teacherRepository.create(createdTeacher);
   }
 
-  async findByUserId(
-    userId: number,
+  async findById(
+    id: number,
     institutionId?: number,
-    includeUser?: boolean,
+    includeUser = false,
   ): Promise<Teacher | null> {
-    const teacher = this.teacherRepository.findByUserId(userId, {
-      includeUser: includeUser ?? false,
+    const teacher = await this.teacherRepository.findById(id, {
+      includeUser,
     });
-
-    if (!teacher) {
-      return null;
-    }
-
+    if (!teacher) return null;
     if (institutionId !== undefined) {
-      const user = await this.userService.findById(userId, institutionId);
+      const user = await this.userService.findById(teacher.userId, institutionId);
       if (!user) {
         throw new ForbiddenException(
           'Нет доступа к преподавателю из другого учреждения',
         );
       }
+    }
+    return teacher;
+  }
+
+  async findByUserId(
+    userId: number,
+    institutionId?: number,
+    options?: IFindOneOptions,
+  ): Promise<Teacher | null> {
+    const includeUser = shouldIncludeUser(options);
+    const teacher = await this.teacherRepository.findByUserId(userId, {
+      includeUser,
+    });
+    if (!teacher) return null;
+    if (institutionId !== undefined) {
+      const user = await this.userService.findById(userId, institutionId);
+      if (!user) throw new ForbiddenException('Нет доступа к преподавателю из другого учреждения');
     }
     return teacher;
   }
@@ -82,6 +97,22 @@ export class TeacherService {
       }
     }
     return teacher;
+  }
+
+  async findBySubjectId(
+    subjectId: number,
+    institutionId?: number,
+    includeUser = false,
+  ): Promise<Teacher[]> {
+    const teachers = await this.teacherRepository.findBySubjectId(subjectId, {
+      includeUser,
+    }, institutionId);
+    const filtered: Teacher[] = [];
+    for (const t of teachers) {
+      const user = await this.userService.findById(t.userId, institutionId);
+      if (user) filtered.push(t);
+    }
+    return filtered;
   }
 
   async assignMentoredGroup(
