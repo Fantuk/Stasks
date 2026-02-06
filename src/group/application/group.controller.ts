@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, NotFoundException, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -12,6 +12,8 @@ import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
 import { AssignStudentsDto } from './dto/assign-students.dto';
 import { AssignTeacherDto } from './dto/assign-teacher.dto';
+import { parseIncludeOption } from 'src/common/utils/query.utils';
+import { SearchQueryDto } from 'src/common/dto/search-query.dto';
 
 @Controller('group')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -105,18 +107,52 @@ export class GroupController {
     return { success: true, data, message: 'Студенты отвязаны от группы' };
   }
 
+  @Get('by-name')
+  async findByName(
+    @Query('name') name: string,
+    @GetUser() user: IAccessToken,
+  ) {
+    const formatedName = name.trim()
+
+    if (!formatedName) throw new BadRequestException('Параметр name обязателен')
+
+    const data = await this.groupService.findByName(formatedName, user.institutionId)
+    return { success: true, data };
+  }
+
   @Get(':id')
   async findById(
     @Param('id', ParseIntPipe) id: number,
     @GetUser() user: IAccessToken,
-    @Query('include') include?: boolean,
+    @Query('include') include?: string,
   ) {
-    const data = include
-      ? await this.groupService.findByIdWithMembers(id, user.institutionId)
-      : await this.groupService.findById(id, user.institutionId);
-
+    const options = parseIncludeOption(include);
+    const data = await this.groupService.findById(id, user.institutionId, options);
     if (!data) throw new NotFoundException('Группа не найдена');
     return { success: true, data };
+  }
+
+  @Get('search')
+  async search(
+    @Query() searchDto: SearchQueryDto,
+    @GetUser() user: IAccessToken,
+  ) {
+    const result = await this.groupService.search({
+      institutionId: user.institutionId,
+      query: searchDto.query,
+      page: searchDto.page,
+      limit: searchDto.limit,
+    });
+    return {
+      success: true,
+      data: result.data,
+      meta: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+      },
+    };
   }
 
   @Patch(':id')
