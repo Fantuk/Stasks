@@ -16,11 +16,11 @@ import { Role } from '@prisma/client';
 import { AssignGroupDto } from 'src/teacher/application/dto/assign-group.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
-import { ParseBoolPipe } from '@nestjs/common';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import type { IAccessToken } from 'src/token/application/interfaces/interfaces';
 import { IStudentResponse } from 'src/student/domain/entities/student.entity';
 import { ApiSuccessResponse } from 'src/common/interfaces/api-responce.interface';
+import { parseIncludeOption, shouldIncludeUser } from 'src/common/utils/query.utils';
 
 @Controller('student')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -32,33 +32,41 @@ export class StudentController {
   async findByGroup(
     @Query('groupId', ParseIntPipe) groupId: number,
     @GetUser() user: IAccessToken,
-    @Query('includeUser', new ParseBoolPipe({ optional: true })) includeUser?: boolean,
+    @Query('include') include?: string,
   ): Promise<ApiSuccessResponse<IStudentResponse[]>> {
-    const students = await this.studentService.findByGroupId(groupId, user.institutionId, includeUser ?? false);
+    const options = parseIncludeOption(include);
+    const includeUser = shouldIncludeUser(options) ?? false;
+    const students = await this.studentService.findByGroupId(
+      groupId,
+      user.institutionId,
+      options,
+    );
     if (students.length === 0) {
       throw new NotFoundException('Студенты не найдены по группе ' + groupId);
     }
     return {
       success: true,
-      data: students.map((s) => s.toResponse(includeUser ?? false)),
-      message: 'Студенты успешно найдены',
+      data: students.map((s) => s.toResponse(includeUser)),
     };
   }
 
-  @Get(':userId')
-  async findOne(
-    @Param('userId', ParseIntPipe) userId: number,
+  @Get(':id')
+  async findById(
+    @Param('id', ParseIntPipe) id: number,
     @GetUser() user: IAccessToken,
-    @Query('includeUser', new ParseBoolPipe({ optional: true })) includeUser?: boolean,
+    @Query('include') include?: string,
   ): Promise<ApiSuccessResponse<IStudentResponse>> {
-    const student = await this.studentService.findByUserId(userId, user.institutionId, includeUser ?? false);
-    if (!student) {
-      throw new NotFoundException('Студент не найден по id ' + userId);
-    }
+    const options = parseIncludeOption(include);
+    const student = await this.studentService.findByUserId(
+      id,
+      user.institutionId,
+      options,
+    );
+    if (!student) throw new NotFoundException('Студент не найден по id ' + id);
+    const includeUser = options?.include?.includes('user') ?? false;
     return {
       success: true,
-      data: student.toResponse(includeUser ?? false),
-      message: 'Студент успешно найден',
+      data: student.toResponse(includeUser),
     };
   }
 
