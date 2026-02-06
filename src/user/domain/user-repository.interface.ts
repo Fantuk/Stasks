@@ -1,5 +1,9 @@
-import { Role } from '@prisma/client';
 import { User } from './entities/user.entity';
+import { Role } from '@prisma/client';
+import { Student } from 'src/student/domain/entities/student.entity';
+import { Teacher } from 'src/teacher/domain/entities/teacher.entity';
+import { Moderator } from 'src/moderator/domain/entities/moderator.entity';
+import { IFindUserOptions } from 'src/common/interfaces/find-options.interface';
 
 export interface ISearchUsersParams {
   institutionId: number;
@@ -7,21 +11,28 @@ export interface ISearchUsersParams {
   roles?: Role[];
   page?: number;
   limit?: number
+  include?: IFindUserOptions;
+}
+
+export interface IUserWithProfiles {
+  user: User;
+  student?: Student;
+  teacher?: Teacher;
+  moderator?: Moderator;
 }
 
 export interface IUserRepository {
-  create(
-    data: Omit<User, 'id' | 'toPersistence' | 'toResponse'>,
-  ): Promise<User>;
+  create(data: Omit<User, 'id' | 'toPersistence' | 'toResponse'>): Promise<User>;
   findByEmail(email: string): Promise<User | null>;
   findAll(): Promise<User[]>;
-  findById(id: number): Promise<User | null>;
+  findById(id: number, options?: IFindUserOptions): Promise<IUserWithProfiles | null>;
   findByInstitutionId(
     institutionId: number,
     page?: number,
     limit?: number,
-  ): Promise<{ users: User[]; total: number }>;
-  search(params: ISearchUsersParams): Promise<{ users: User[], total: number }>
+    options?: IFindUserOptions,
+  ): Promise<{ users: IUserWithProfiles[]; total: number }>;
+  search(params: ISearchUsersParams): Promise<{ users: IUserWithProfiles[]; total: number }>;
   update(id: number, data: Partial<Omit<User, 'id'>>): Promise<User>;
   remove(id: number): Promise<void>;
 }
