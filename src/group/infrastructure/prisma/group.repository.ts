@@ -74,6 +74,56 @@ export class GroupRepository implements IGroupRepository {
         }
     }
 
+    async findByName(name: string, institutionId: number): Promise<Group | null> {
+        const raw = await this.prisma.group.findFirst({
+            where: { name, institutionId },
+            select: this.groupSelect
+        })
+        return raw ? this.mapToDomain(raw) : null
+    }
+
+    async findBySubjectId(subjectId: number, institutionId?: number): Promise<Group[]> {
+        const raw = await this.prisma.group.findMany({
+            where: {
+                subjectGroups: { some: { subjectId } },
+                ...(institutionId !== undefined && {
+                    institutionId,
+                }),
+            },
+            select: this.groupSelect,
+        });
+        return raw.map(this.mapToDomain);
+    }
+
+    async search(params: {
+        institutionId: number;
+        query?: string;
+        page?: number;
+        limit?: number;
+      }): Promise<{ groups: Group[]; total: number }> {
+        const where: Prisma.GroupWhereInput = { institutionId: params.institutionId };
+        if (params.query?.trim()) {
+          where.name = { contains: params.query.trim(), mode: 'insensitive' };
+        }
+    
+        const total = await this.prisma.group.count({ where });
+        const skip = params.page && params.limit ? (params.page - 1) * params.limit : undefined;
+        const take = params.limit;
+    
+        const raw = await this.prisma.group.findMany({
+          where,
+          select: this.groupSelect,
+          skip,
+          take,
+          orderBy: { id: 'asc' },
+        });
+    
+        return {
+          groups: raw.map(this.mapToDomain),
+          total,
+        };
+      }
+
     async update(id: number, data: Partial<Omit<Group, "id">>): Promise<Group> {
         try {
             const updateData: Prisma.GroupUpdateInput = data instanceof Group ? data.toPersistence() : data;
