@@ -10,7 +10,6 @@ import helmet from '@fastify/helmet';
 import compress from '@fastify/compress';
 import rateLimit from '@fastify/rate-limit';
 import fastifyCookie from '@fastify/cookie';
-import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -19,8 +18,6 @@ async function bootstrap() {
       logger: true,
     }),
   );
-
-  app.use(cookieParser());
 
   await app.register(fastifyCookie);
   await app.register(helmet);
@@ -55,9 +52,31 @@ async function bootstrap() {
   });
 
   const config = new DocumentBuilder()
-    .setTitle('Stasks')
-    .setDescription('The Stasks API description')
+    .setTitle('Stasks API')
+    .setDescription(
+      'API системы Stasks.\n\n' +
+      '**Формат ответов:**\n' +
+      '- Успех: `{ success: true, data, message?, meta? }`. Поле `data` — объект сущности, массив (при списках) или null. Поле `meta` присутствует только при пагинации: `page`, `limit`, `total`, `totalPages`.\n\n' +
+      '- Ошибка: `{ success: false, data: null, message, errors? }`. Массив `errors` (поле, сообщение) — при 400.\n\n' +
+      '**Авторизация:** защищённые эндпоинты требуют заголовок `Authorization: Bearer <accessToken>`.\n\n' +
+      'Типы и схемы всех полей описаны в разделе Schemas ниже.',
+    )
     .setVersion('1.0')
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', in: 'header' },
+      'JWT',
+    )
+    .addTag('Auth', 'Регистрация, вход и выход')
+    .addTag('Users', 'Пользователи (поиск, CRUD, текущий пользователь)')
+    .addTag('Groups', 'Группы и привязка студентов/кураторов')
+    .addTag('Subjects', 'Предметы и привязка преподавателей/групп')
+    .addTag('Teachers', 'Преподаватели')
+    .addTag('Students', 'Студенты')
+    .addTag('Moderators', 'Модераторы')
+    .addTag('Buildings', 'Здания')
+    .addTag('Floors', 'Этажи')
+    .addTag('Classrooms', 'Аудитории')
+    .addTag('Tokens', 'Токены')
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
