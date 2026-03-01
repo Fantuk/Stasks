@@ -1,7 +1,7 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from "@nestjs/common";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
-import { ApiSuccessResponse, ResponseMeta } from "src/common/interfaces/api-responce.interface";
+import { ApiSuccessResponse, ResponseMeta } from "src/common/interfaces/api-response.interface";
 import { PaginatedResult } from "src/common/dto/pagination.dto";
 
 @Injectable()
