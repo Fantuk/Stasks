@@ -14,6 +14,11 @@ import { HttpExceptionFilter } from 'src/common/filters/http-exception.filter';
 import { ResponseTransformInterceptor } from 'src/common/interceptors/response-transform.interceptor';
 import { GroupModule } from './group/application/group.module';
 import { SubjectModule } from './subject/application/subject.module';
+import { BuildingModule } from './building/application/building.module';
+import { FloorModule } from './floor/application/floor.module';
+import { ClassroomModule } from './classroom/application/classroom.module';
+import { BellTemplateModule } from './bell-template/application/bell-template.module';
+import { ScheduleModule } from './schedule/application/schedule.module';
 
 @Module({
   imports: [
@@ -29,6 +34,11 @@ import { SubjectModule } from './subject/application/subject.module';
     StudentModule,
     GroupModule,
     SubjectModule,
+    BuildingModule,
+    FloorModule,
+    ClassroomModule,
+    BellTemplateModule,
+    ScheduleModule,
   ],
   controllers: [],
   providers: [
