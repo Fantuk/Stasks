@@ -10,6 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiExtraModels, getSchemaPath } from '@nestjs/swagger';
 import { StudentService } from './student.service';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
@@ -19,9 +20,15 @@ import { RolesGuard } from 'src/common/guards/roles.guard';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import type { IAccessToken } from 'src/token/application/interfaces/interfaces';
 import { IStudentResponse } from 'src/student/domain/entities/student.entity';
-import { ApiSuccessResponse } from 'src/common/interfaces/api-responce.interface';
+import { ApiSuccessResponse } from 'src/common/interfaces/api-response.interface';
+import { API_ERROR_RESPONSE_SCHEMA, createSuccessResponseSchema } from 'src/common/interfaces/api-response.interface';
 import { parseIncludeOption, shouldIncludeUser } from 'src/common/utils/query.utils';
+import { StudentResponseDto } from 'src/student/application/dto/student-response.dto';
+import { UserResponseDto } from 'src/user/application/dto/user-response.dto';
 
+@ApiTags('Students')
+@ApiBearerAuth('JWT')
+@ApiExtraModels(StudentResponseDto, UserResponseDto)
 @Controller('student')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN, Role.MODERATOR)
@@ -29,6 +36,14 @@ export class StudentController {
   constructor(private readonly studentService: StudentService) { }
 
   @Get()
+  @ApiOperation({ summary: 'Список студентов группы', description: 'Query: groupId (обязателен)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Список студентов',
+    schema: createSuccessResponseSchema(getSchemaPath(StudentResponseDto), { isArray: true }),
+  })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 404, description: 'Студенты не найдены', schema: API_ERROR_RESPONSE_SCHEMA })
   async findByGroup(
     @Query('groupId', ParseIntPipe) groupId: number,
     @GetUser() user: IAccessToken,
@@ -51,6 +66,14 @@ export class StudentController {
   }
 
   @Get(':id')
+  @ApiOperation({ summary: 'Студент по id пользователя' })
+  @ApiResponse({
+    status: 200,
+    description: 'Данные студента',
+    schema: createSuccessResponseSchema(getSchemaPath(StudentResponseDto)),
+  })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 404, description: 'Студент не найден', schema: API_ERROR_RESPONSE_SCHEMA })
   async findById(
     @Param('id', ParseIntPipe) id: number,
     @GetUser() user: IAccessToken,
@@ -71,6 +94,14 @@ export class StudentController {
   }
 
   @Patch(':userId/group')
+  @ApiOperation({ summary: 'Привязать студента к группе' })
+  @ApiResponse({
+    status: 200,
+    description: 'Студент привязан к группе',
+    schema: createSuccessResponseSchema(getSchemaPath(StudentResponseDto)),
+  })
+  @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async assignToGroup(
     @Param('userId', ParseIntPipe) userId: number,
     @Body() dto: AssignGroupDto,
@@ -89,6 +120,13 @@ export class StudentController {
   }
 
   @Delete(':userId/group')
+  @ApiOperation({ summary: 'Отвязать студента от группы' })
+  @ApiResponse({
+    status: 200,
+    description: 'Студент отвязан от группы',
+    schema: createSuccessResponseSchema(getSchemaPath(StudentResponseDto)),
+  })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async removeFromGroup(@Param('userId', ParseIntPipe) userId: number, @GetUser() user: IAccessToken): Promise<ApiSuccessResponse<IStudentResponse>> {
     const student = await this.studentService.removeFromGroup(userId, user.institutionId);
     return {
