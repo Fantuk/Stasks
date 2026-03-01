@@ -1,4 +1,5 @@
-import { Injectable, Inject, NotFoundException, ForbiddenException, BadRequestException, forwardRef } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException, forwardRef } from '@nestjs/common';
+import { ensureInstitutionAccess } from 'src/common/utils/institution-access.utils';
 import { Group } from 'src/group/domain/entities/group.entity'
 import type { IGroupRepository } from 'src/group/domain/group-repository.interface';
 import { UpdateGroupDto } from 'src/group/application/dto/update-group.dto';
@@ -7,6 +8,7 @@ import { StudentService } from 'src/student/application/student.service';
 import { TeacherService } from 'src/teacher/application/teacher.service';
 import { IFindOneOptions } from 'src/common/interfaces/find-options.interface';
 import { shouldIncludeMembers } from 'src/common/utils/query.utils';
+import { paginate } from 'src/common/utils/pagination.utils';
 import { PaginatedResult } from 'src/common/dto/pagination.dto';
 
 @Injectable()
@@ -36,9 +38,11 @@ export class GroupService {
         const group = await this.groupRepository.findById(id);
         if (!group) return null;
 
-        if (institutionId !== undefined && group.institutionId !== institutionId) {
-            throw new ForbiddenException('Нет доступа к группе из другого учреждения');
-        }
+        ensureInstitutionAccess(
+            group.institutionId,
+            institutionId,
+            'Нет доступа к группе из другого учреждения',
+        );
 
         const base = this.mapToResponse(group);
         if (!shouldIncludeMembers(options)) return base;
@@ -64,16 +68,7 @@ export class GroupService {
             page,
             limit
         )
-        const currentPage = page ?? 1
-        const pageLimit = limit ?? 10
-        const totalPages = Math.ceil(total / pageLimit)
-        return {
-            data: groups.map(this.mapToResponse),
-            total,
-            page: currentPage,
-            limit: pageLimit,
-            totalPages
-        }
+        return paginate(groups.map(this.mapToResponse), total, page, limit)
     }
 
     async findByName(name: string, institutionId: number) {
@@ -83,18 +78,19 @@ export class GroupService {
             throw new NotFoundException('Группа не найдена')
         }
 
-        if (institutionId !== undefined && group.institutionId !== institutionId) {
-            throw new ForbiddenException(
-                'Нет доступа к группе из другого учреждения',
-            );
-        }
+        ensureInstitutionAccess(
+            group.institutionId,
+            institutionId,
+            'Нет доступа к группе из другого учреждения',
+        );
 
+        const base = this.mapToResponse(group);
         const [teacher, students] = await Promise.all([
             this.teacherService.findByMentoredGroupId(group.id!, institutionId, true),
             this.studentService.findByGroupId(group.id!, institutionId, { includeUser: true } as IFindOneOptions),
         ]);
         return {
-            ...group,
+            ...base,
             teacher: teacher?.toResponse(true) ?? null,
             students: students.map((s) => s.toResponse(true)),
         };
@@ -115,16 +111,12 @@ export class GroupService {
         limit?: number;
       }): Promise<PaginatedResult<ReturnType<Group['toResponse']>>> {
         const { groups, total } = await this.groupRepository.search(params);
-        const page = params.page ?? 1;
-        const limit = params.limit ?? 10;
-        const totalPages = Math.ceil(total / limit);
-        return {
-          data: groups.map((g) => this.mapToResponse(g)),
+        return paginate(
+          groups.map((g) => this.mapToResponse(g)),
           total,
-          page,
-          limit,
-          totalPages,
-        };
+          params.page,
+          params.limit,
+        );
       }
 
     async update(id: number, updateDto: UpdateGroupDto, institutionId?: number) {
@@ -134,11 +126,11 @@ export class GroupService {
             throw new NotFoundException("Группа не найдена")
         }
 
-        if (institutionId !== undefined && existing.institutionId !== institutionId) {
-            throw new ForbiddenException(
-                'Нет доступа к группе из другого учреждения',
-            );
-        }
+        ensureInstitutionAccess(
+            existing.institutionId,
+            institutionId,
+            'Нет доступа к группе из другого учреждения',
+        );
 
         const updated = await this.groupRepository.update(id, updateDto)
         return this.mapToResponse(updated)
@@ -151,11 +143,11 @@ export class GroupService {
             throw new NotFoundException("Группа не найдена")
         }
 
-        if (institutionId !== undefined && group.institutionId !== institutionId) {
-            throw new ForbiddenException(
-                'Нет доступа к удалению группы из другого учреждения',
-            );
-        }
+        ensureInstitutionAccess(
+            group.institutionId,
+            institutionId,
+            'Нет доступа к удалению группы из другого учреждения',
+        );
 
         await this.groupRepository.remove(id)
     }
