@@ -1,4 +1,15 @@
-import { IncludeOption, IFindOneOptions, IFindUserOptions, UserProfileIncludeOption } from 'src/common/interfaces/find-options.interface';
+import {
+  IncludeOption,
+  IFindOneOptions,
+  IFindUserOptions,
+  UserProfileIncludeOption,
+  BuildingIncludeOption,
+  IBuildingFindOptions,
+  FloorIncludeOption,
+  IFloorFindOptions,
+  ClassroomIncludeOption,
+  IClassroomFindOptions,
+} from 'src/common/interfaces/find-options.interface';
 
 const VALID_INCLUDE: IncludeOption[] =
   [
@@ -61,4 +72,53 @@ export function shouldIncludeTeacher(options?: IFindUserOptions): boolean {
 
 export function shouldIncludeModerator(options?: IFindUserOptions): boolean {
   return options?.include?.includes('moderator') ?? false;
+}
+
+const BUILDING_INCLUDE_OPTIONS: BuildingIncludeOption[] = ['floors', 'floors.classrooms'];
+
+export function parseBuildingIncludeOption(include?: string): IBuildingFindOptions {
+  if (!include?.trim()) return {};
+  const parts = include.split(',').map((s) => s.trim().toLowerCase());
+  const filtered = parts.filter((p): p is BuildingIncludeOption =>
+    BUILDING_INCLUDE_OPTIONS.includes(p as BuildingIncludeOption),
+  );
+  return filtered.length > 0 ? { include: filtered } : {};
+}
+
+export function shouldIncludeFloors(options?: IBuildingFindOptions): boolean {
+  return options?.include?.includes('floors') ?? options?.include?.includes('floors.classrooms') ?? false;
+}
+
+export function shouldIncludeFloorsClassrooms(options?: IBuildingFindOptions): boolean {
+  return options?.include?.includes('floors.classrooms') ?? false;
+}
+
+const FLOOR_INCLUDE_OPTIONS: FloorIncludeOption[] = ['classrooms'];
+
+export function parseFloorIncludeOption(include?: string): IFloorFindOptions {
+  if (!include?.trim()) return {};
+  const parts = include.split(',').map((s) => s.trim().toLowerCase());
+  const filtered = parts.filter((p): p is FloorIncludeOption =>
+    FLOOR_INCLUDE_OPTIONS.includes(p as FloorIncludeOption),
+  );
+  return filtered.length > 0 ? { include: filtered } : {};
+}
+
+export function shouldIncludeClassrooms(options?: IFloorFindOptions): boolean {
+  return options?.include?.includes('classrooms') ?? false;
+}
+
+const CLASSROOM_INCLUDE_OPTIONS: ClassroomIncludeOption[] = ['floor'];
+
+export function parseClassroomIncludeOption(include?: string): IClassroomFindOptions {
+  if (!include?.trim()) return {};
+  const parts = include.split(',').map((s) => s.trim().toLowerCase());
+  const filtered = parts.filter((p): p is ClassroomIncludeOption =>
+    CLASSROOM_INCLUDE_OPTIONS.includes(p as ClassroomIncludeOption),
+  );
+  return filtered.length > 0 ? { include: filtered } : {};
+}
+
+export function shouldIncludeFloor(options?: IClassroomFindOptions): boolean {
+  return options?.include?.includes('floor') ?? false;
 }
