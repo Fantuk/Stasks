@@ -12,14 +12,22 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiExtraModels, getSchemaPath } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import type { IAccessToken } from 'src/token/application/interfaces/interfaces';
-import { ApiSuccessResponse } from 'src/common/interfaces/api-responce.interface';
+import {
+  ApiSuccessResponse,
+  API_SUCCESS_RESPONSE_SCHEMA,
+  API_ERROR_RESPONSE_SCHEMA,
+  createSuccessResponseSchema,
+} from 'src/common/interfaces/api-response.interface';
+import { ResponseMetaDto } from 'src/common/interfaces/api-response.interface';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
+import { SubjectResponseDto } from 'src/subject/application/dto/subject-response.dto';
 import { SubjectService } from 'src/subject/application/subject.service';
 import { CreateSubjectDto } from 'src/subject/application/dto/create-subject.dto';
 import { UpdateSubjectDto } from 'src/subject/application/dto/update-subject.dto';
@@ -28,6 +36,9 @@ import { AssignGroupsDto } from 'src/subject/application/dto/assign-groups.dto';
 import { parseIncludeOption } from 'src/common/utils/query.utils';
 import { SearchQueryDto } from 'src/common/dto/search-query.dto';
 
+@ApiTags('Subjects')
+@ApiBearerAuth('JWT')
+@ApiExtraModels(SubjectResponseDto, ResponseMetaDto)
 @Controller('subject')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN, Role.MODERATOR)
@@ -35,6 +46,14 @@ export class SubjectController {
   constructor(private readonly subjectService: SubjectService) { }
 
   @Post()
+  @ApiOperation({ summary: 'Создать предмет' })
+  @ApiResponse({
+    status: 201,
+    description: 'Предмет создан',
+    schema: createSuccessResponseSchema(getSchemaPath(SubjectResponseDto)),
+  })
+  @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async create(
     @Body() dto: CreateSubjectDto,
     @GetUser() user: IAccessToken,
@@ -44,6 +63,13 @@ export class SubjectController {
   }
 
   @Get('search')
+  @ApiOperation({ summary: 'Поиск предметов с пагинацией' })
+  @ApiResponse({
+    status: 200,
+    description: 'Список и meta',
+    schema: createSuccessResponseSchema(getSchemaPath(SubjectResponseDto), { withMeta: true, isArray: true }),
+  })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async search(
     @Query() searchDto: SearchQueryDto,
     @GetUser() user: IAccessToken,
@@ -67,6 +93,13 @@ export class SubjectController {
   }
 
   @Get()
+  @ApiOperation({ summary: 'Список предметов учреждения с пагинацией' })
+  @ApiResponse({
+    status: 200,
+    description: 'Список и meta',
+    schema: createSuccessResponseSchema(getSchemaPath(SubjectResponseDto), { withMeta: true, isArray: true }),
+  })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async findAll(
     @GetUser() user: IAccessToken,
     @Query() paginationDto: PaginationDto,
@@ -84,6 +117,14 @@ export class SubjectController {
   }
 
   @Get('by-name')
+  @ApiOperation({ summary: 'Найти предмет по имени', description: 'Query: name (обязателен)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Предмет найден',
+    schema: createSuccessResponseSchema(getSchemaPath(SubjectResponseDto)),
+  })
+  @ApiResponse({ status: 400, description: 'Параметр name обязателен', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async findByName(
     @Query('name') name: string,
     @GetUser() user: IAccessToken,
@@ -97,6 +138,14 @@ export class SubjectController {
   }
 
   @Get(':id')
+  @ApiOperation({ summary: 'Предмет по id' })
+  @ApiResponse({
+    status: 200,
+    description: 'Данные предмета',
+    schema: createSuccessResponseSchema(getSchemaPath(SubjectResponseDto)),
+  })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 404, description: 'Предмет не найден', schema: API_ERROR_RESPONSE_SCHEMA })
   async findById(
     @Param('id', ParseIntPipe) id: number,
     @GetUser() user: IAccessToken,
@@ -109,6 +158,15 @@ export class SubjectController {
   }
 
   @Patch(':id')
+  @ApiOperation({ summary: 'Обновить предмет' })
+  @ApiResponse({
+    status: 200,
+    description: 'Предмет обновлён',
+    schema: createSuccessResponseSchema(getSchemaPath(SubjectResponseDto)),
+  })
+  @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 404, description: 'Предмет не найден', schema: API_ERROR_RESPONSE_SCHEMA })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateSubjectDto,
@@ -119,6 +177,10 @@ export class SubjectController {
   }
 
   @Delete(':id')
+  @ApiOperation({ summary: 'Удалить предмет' })
+  @ApiResponse({ status: 200, description: 'Предмет удалён', schema: API_SUCCESS_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 404, description: 'Предмет не найден', schema: API_ERROR_RESPONSE_SCHEMA })
   async remove(
     @Param('id', ParseIntPipe) id: number,
     @GetUser() user: IAccessToken,
@@ -128,6 +190,14 @@ export class SubjectController {
   }
 
   @Post(':id/teachers')
+  @ApiOperation({ summary: 'Привязать преподавателей к предмету' })
+  @ApiResponse({
+    status: 200,
+    description: 'Преподаватели привязаны',
+    schema: createSuccessResponseSchema(getSchemaPath(SubjectResponseDto)),
+  })
+  @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async assignTeachers(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AssignTeachersDto,
@@ -142,6 +212,9 @@ export class SubjectController {
   }
 
   @Delete(':id/teachers/:teacherId')
+  @ApiOperation({ summary: 'Отвязать преподавателя от предмета' })
+  @ApiResponse({ status: 200, description: 'Преподаватель отвязан', schema: API_SUCCESS_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async unassignTeacher(
     @Param('id', ParseIntPipe) id: number,
     @Param('teacherId', ParseIntPipe) teacherId: number,
@@ -152,6 +225,14 @@ export class SubjectController {
   }
 
   @Post(':id/groups')
+  @ApiOperation({ summary: 'Привязать группы к предмету' })
+  @ApiResponse({
+    status: 200,
+    description: 'Группы привязаны',
+    schema: createSuccessResponseSchema(getSchemaPath(SubjectResponseDto)),
+  })
+  @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async assignGroups(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AssignGroupsDto,
@@ -166,6 +247,9 @@ export class SubjectController {
   }
 
   @Delete(':id/groups/:groupId')
+  @ApiOperation({ summary: 'Отвязать группу от предмета' })
+  @ApiResponse({ status: 200, description: 'Группа отвязана', schema: API_SUCCESS_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async unassignGroup(
     @Param('id', ParseIntPipe) id: number,
     @Param('groupId', ParseIntPipe) groupId: number,
