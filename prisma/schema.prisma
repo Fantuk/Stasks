@@ -10,11 +10,50 @@ datasource db {
 model Institution {
   id    Int    @id @default(autoincrement())
   name  String
+
   users User[]
   groups Group[]
   subjects Subject[]
+  buildings Building[]
+  bellTemplates BellTemplate[]
+  schedules     Schedule[]
 
   @@map("institutions")
+}
+
+model Building {
+  id    Int    @id @default(autoincrement())
+  institutionId Int     @map("institution_id")
+  name String 
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+
+  floors Floor[]
+
+  @@map("buildings")
+}
+
+model Floor {
+  id    Int    @id @default(autoincrement())
+  buildingId Int @map("building_id")
+  number Int
+
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Restrict)
+
+  classrooms Classroom[]
+
+  @@map("floors")
+}
+
+model Classroom {
+  id    Int    @id @default(autoincrement())
+  floorId Int @map("floor_id")
+  name String
+
+  floor Floor @relation(fields: [floorId], references: [id], onDelete: Restrict)
+  schedules Schedule[]
+
+  @@map("classrooms")
 }
 
 model User {
@@ -73,7 +112,7 @@ model Teacher {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   group Group? @relation(fields: [mentoredGroupId], references: [id], onDelete: SetNull)
   teacherSubjects TeacherSubject[]
-
+  schedules       Schedule[]
 
   @@map("teachers")
 }
@@ -91,7 +130,7 @@ model Student {
 
 model Group {
   id Int @id @default(autoincrement())
-  name String @unique
+  name String
   institutionId Int @map("institution_id")
 
 
@@ -99,18 +138,25 @@ model Group {
   students Student[]
   teacher Teacher?
   subjectGroups SubjectGroup[]
+  bellTemplates BellTemplate[]
+  schedules     Schedule[]
 
+  @@unique([institutionId, name])
+ 
   @@map("groups")
 }
 
 model Subject {
   id Int @id @default(autoincrement())
   institutionId Int @map("institution_id")
-  name String @unique
+  name String
 
   institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   subjectGroups SubjectGroup[]
   teacherSubjects TeacherSubject[]
+  schedules      Schedule[]
+
+  @@unique([institutionId, name])
   
   @@map("subjects")
 }
@@ -139,4 +185,51 @@ model TeacherSubject {
   @@unique([teacherId, subjectId])
 
   @@map("teacher_subjects")
+}
+
+model BellTemplate {
+  id             Int          @id @default(autoincrement())
+  institutionId  Int          @map("institution_id")
+  groupId        Int?         @map("group_id")
+  scheduleType   ScheduleType @map("schedule_type")
+  specificDate   DateTime?    @map("specific_date")   // используется, если scheduleType = 'date'
+  weekdayStart   Int?         @map("weekday_start")  // 1 = понедельник, используется, если scheduleType = 'weekday'
+  weekdayEnd     Int?         @map("weekday_end")     // 7 = воскресенье, используется, если scheduleType = 'weekday'
+  lessonNumber   Int          @map("lesson_number")
+  startTime      DateTime     @map("start_time")      // время начала пары (часы и минуты)
+  endTime        DateTime     @map("end_time")        // время конца пары (часы и минуты)
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  group       Group?      @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  schedules   Schedule[]
+
+  @@unique([groupId, scheduleType, specificDate, weekdayStart, weekdayEnd, lessonNumber])
+  @@map("bell_templates")
+}
+
+model Schedule {
+  id              Int          @id @default(autoincrement())
+  institutionId   Int          @map("institution_id")
+  subjectId       Int          @map("subject_id")
+  groupId         Int          @map("group_id")
+  teacherId       Int          @map("teacher_id")
+  classroomId     Int          @map("classroom_id")
+  bellTemplateId  Int          @map("bell_template_id")
+  scheduleDate    DateTime     @map("schedule_date")
+
+  institution  Institution  @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  group        Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  teacher     Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  classroom   Classroom   @relation(fields: [classroomId], references: [id], onDelete: Restrict)
+  bellTemplate BellTemplate @relation(fields: [bellTemplateId], references: [id], onDelete: Restrict)
+
+  @@index([groupId, scheduleDate])
+  @@map("schedules")
+}
+
+// Enum для scheduleType
+enum ScheduleType {
+  date
+  weekday
 }
