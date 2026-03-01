@@ -4,12 +4,12 @@ import {
   Get,
   NotFoundException,
   Param,
-  ParseBoolPipe,
   ParseIntPipe,
   Patch,
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiExtraModels, getSchemaPath } from '@nestjs/swagger';
 import { ModeratorService } from './moderator.service';
 import { Role } from '@prisma/client';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -18,15 +18,29 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import type { IAccessToken } from 'src/token/application/interfaces/interfaces';
-import { ApiSuccessResponse } from 'src/common/interfaces/api-responce.interface';
+import { ApiSuccessResponse } from 'src/common/interfaces/api-response.interface';
+import { API_ERROR_RESPONSE_SCHEMA, createSuccessResponseSchema } from 'src/common/interfaces/api-response.interface';
 import { parseIncludeOption } from 'src/common/utils/query.utils';
+import { ModeratorResponseDto } from 'src/moderator/application/dto/moderator-response.dto';
+import { UserResponseDto } from 'src/user/application/dto/user-response.dto';
 
+@ApiTags('Moderators')
+@ApiBearerAuth('JWT')
+@ApiExtraModels(ModeratorResponseDto, UserResponseDto)
 @Controller('moderator')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ModeratorController {
   constructor(private readonly moderatorService: ModeratorService) { }
 
   @Get(':userId')
+  @ApiOperation({ summary: 'Модератор по id пользователя' })
+  @ApiResponse({
+    status: 200,
+    description: 'Данные модератора',
+    schema: createSuccessResponseSchema(getSchemaPath(ModeratorResponseDto)),
+  })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 404, description: 'Модератор не найден', schema: API_ERROR_RESPONSE_SCHEMA })
   @Roles(Role.ADMIN, Role.MODERATOR)
   async findById(
     @Param('userId', ParseIntPipe) userId: number,
@@ -49,6 +63,15 @@ export class ModeratorController {
   }
 
   @Patch(':userId')
+  @ApiOperation({ summary: 'Обновить права доступа модератора', description: 'Только ADMIN' })
+  @ApiResponse({
+    status: 200,
+    description: 'Права обновлены',
+    schema: createSuccessResponseSchema(getSchemaPath(ModeratorResponseDto)),
+  })
+  @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 404, description: 'Модератор не найден', schema: API_ERROR_RESPONSE_SCHEMA })
   @Roles(Role.ADMIN)
   async updateAccessRights(
     @Param('userId', ParseIntPipe) userId: number,
