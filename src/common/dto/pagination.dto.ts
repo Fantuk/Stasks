@@ -1,31 +1,23 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsOptional, IsInt, Min, Max } from 'class-validator';
 
+/** Базовый DTO пагинации: page, limit (для списков) */
 export class PaginationDto {
+  @ApiPropertyOptional({ default: 1, minimum: 1, description: 'Номер страницы', example: 1 })
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'Страница должна быть числом' })
   @Min(1, { message: 'Страница должна быть больше 0' })
   page?: number;
 
+  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 100, description: 'Записей на странице', example: 10 })
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'Лимит должен быть числом' })
   @Min(1, { message: 'Лимит должен быть больше 0' })
   @Max(100, { message: 'Лимит не может быть больше 100' })
   limit?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt({ message: 'Общее количество страниц должно быть числом' })
-  @Min(1, { message: 'Общее количество страниц должно быть больше 0' })
-  totalPages?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt({ message: 'Общее количество элементов должно быть числом' })
-  @Min(1, { message: 'Общее количество элементов должно быть больше 0' })
-  total?: number;
 }
 
 export interface PaginatedResult<T> {
