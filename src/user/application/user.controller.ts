@@ -11,6 +11,7 @@ import {
   UseGuards,
   NotFoundException,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiExtraModels, getSchemaPath } from '@nestjs/swagger';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -21,13 +22,23 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import { Role } from '@prisma/client';
 import type { IAccessToken } from 'src/token/application/interfaces/interfaces';
-import { ApiSuccessResponse } from 'src/common/interfaces/api-responce.interface';
+import {
+  ApiSuccessResponse,
+  API_SUCCESS_RESPONSE_SCHEMA,
+  API_ERROR_RESPONSE_SCHEMA,
+  createSuccessResponseSchema,
+} from 'src/common/interfaces/api-response.interface';
+import { ResponseMetaDto } from 'src/common/interfaces/api-response.interface';
 import { UserResponse } from 'src/user/application/interfaces/interfaces';
+import { UserResponseDto } from 'src/user/application/dto/user-response.dto';
 import { SearchUsersDto } from 'src/user/application/dto/search-users.dto';
 import { GetMeDto } from 'src/user/application/dto/get-me.dto';
 import { ModeratorPermissions } from 'src/common/decorators/moderator-permissions.decorator';
 import { parseUserIncludeOption } from 'src/common/utils/query.utils';
 
+@ApiTags('Users')
+@ApiBearerAuth('JWT')
+@ApiExtraModels(UserResponseDto, ResponseMetaDto)
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN, Role.MODERATOR)
@@ -35,6 +46,14 @@ export class UserController {
   constructor(private readonly userService: UserService) { }
 
   @Post()
+  @ApiOperation({ summary: 'Создать пользователя' })
+  @ApiResponse({
+    status: 201,
+    description: 'Пользователь создан',
+    schema: createSuccessResponseSchema(getSchemaPath(UserResponseDto)),
+  })
+  @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async create(
     @Body() createUserDto: CreateUserDto,
     @GetUser() user: IAccessToken,
@@ -49,6 +68,13 @@ export class UserController {
   }
 
   @Get('search')
+  @ApiOperation({ summary: 'Поиск пользователей по email/имени с пагинацией' })
+  @ApiResponse({
+    status: 200,
+    description: 'Список пользователей и meta (page, limit, total, totalPages)',
+    schema: createSuccessResponseSchema(getSchemaPath(UserResponseDto), { withMeta: true, isArray: true }),
+  })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async findByEmail(
     @Query() searchDto: SearchUsersDto,
     @GetUser() user: IAccessToken,
@@ -77,8 +103,15 @@ export class UserController {
     };
   }
 
-  /** Текущий пользователь: любой авторизованный (роль не проверяется) */
   @Get('me')
+  @ApiOperation({ summary: 'Текущий пользователь', description: 'Данные авторизованного пользователя' })
+  @ApiResponse({
+    status: 200,
+    description: 'Данные пользователя',
+    schema: createSuccessResponseSchema(getSchemaPath(UserResponseDto)),
+  })
+  @ApiResponse({ status: 401, description: 'Не авторизован', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 404, description: 'Пользователь не найден', schema: API_ERROR_RESPONSE_SCHEMA })
   @Roles()
   async getMe(
     @GetUser() user: IAccessToken,
@@ -93,6 +126,13 @@ export class UserController {
   }
 
   @Get()
+  @ApiOperation({ summary: 'Список пользователей учреждения с пагинацией' })
+  @ApiResponse({
+    status: 200,
+    description: 'Список и meta',
+    schema: createSuccessResponseSchema(getSchemaPath(UserResponseDto), { withMeta: true, isArray: true }),
+  })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async findAll(
     @GetUser() user: IAccessToken,
     @Query() paginationDto: PaginationDto,
@@ -115,6 +155,14 @@ export class UserController {
   }
 
   @Get(':id')
+  @ApiOperation({ summary: 'Пользователь по id' })
+  @ApiResponse({
+    status: 200,
+    description: 'Данные пользователя',
+    schema: createSuccessResponseSchema(getSchemaPath(UserResponseDto)),
+  })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 404, description: 'Пользователь не найден', schema: API_ERROR_RESPONSE_SCHEMA })
   async findById(
     @Param('id', ParseIntPipe) id: number,
     @GetUser() user: IAccessToken,
@@ -127,6 +175,15 @@ export class UserController {
   }
 
   @Patch(':id')
+  @ApiOperation({ summary: 'Обновить пользователя' })
+  @ApiResponse({
+    status: 200,
+    description: 'Пользователь обновлён',
+    schema: createSuccessResponseSchema(getSchemaPath(UserResponseDto)),
+  })
+  @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 404, description: 'Пользователь не найден', schema: API_ERROR_RESPONSE_SCHEMA })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto,
@@ -142,6 +199,9 @@ export class UserController {
   }
 
   @Delete(':id')
+  @ApiOperation({ summary: 'Удалить пользователя', description: 'Требуется право canDeleteUsers' })
+  @ApiResponse({ status: 200, description: 'Пользователь удалён (data: null)', schema: API_SUCCESS_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   @ModeratorPermissions('canDeleteUsers')
   async remove(@Param('id', ParseIntPipe) id: number): Promise<ApiSuccessResponse<null>> {
     await this.userService.remove(id);
