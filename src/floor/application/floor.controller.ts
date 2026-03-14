@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   NotFoundException,
   Param,
   ParseIntPipe,
@@ -39,9 +41,11 @@ import { FloorResponseDto } from 'src/floor/application/dto/floor-response.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN, Role.MODERATOR)
 export class FloorController {
+  /** Специфичные пути (search и т.д.) должны быть объявлены выше Get(':id'). */
   constructor(private readonly floorService: FloorService) {}
 
   @Post()
+  @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Создать этаж' })
   @ApiResponse({
     status: 201,
@@ -63,7 +67,10 @@ export class FloorController {
   }
 
   @Get('search')
-  @ApiOperation({ summary: 'Поиск этажей с пагинацией' })
+  @ApiOperation({
+    summary: 'Поиск этажей с пагинацией',
+    description: 'Поиск по строке. Список по зданию: GET /floor?buildingId=...',
+  })
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
@@ -94,7 +101,10 @@ export class FloorController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Список этажей здания с пагинацией' })
+  @ApiOperation({
+    summary: 'Список этажей здания с пагинацией',
+    description: 'Список по buildingId (обязателен). Для поиска используйте GET /floor/search.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
