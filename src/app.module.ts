@@ -12,6 +12,7 @@ import { TeacherModule } from 'src/teacher/application/teacher.module';
 import { StudentModule } from 'src/student/application/student.module';
 import { HttpExceptionFilter } from 'src/common/filters/http-exception.filter';
 import { ResponseTransformInterceptor } from 'src/common/interceptors/response-transform.interceptor';
+import { CacheControlInterceptor } from 'src/common/interceptors/cache-control.interceptor';
 import { GroupModule } from './group/application/group.module';
 import { SubjectModule } from './subject/application/subject.module';
 import { BuildingModule } from './building/application/building.module';
@@ -57,6 +58,10 @@ import { ScheduleModule } from './schedule/application/schedule.module';
     {
       provide: APP_INTERCEPTOR,
       useClass: ResponseTransformInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: CacheControlInterceptor,
     },
   ],
 })
