@@ -8,6 +8,7 @@ import { TeacherService } from 'src/teacher/application/teacher.service';
 import { IFindOneOptions } from 'src/common/interfaces/find-options.interface';
 import { shouldIncludeGroups, shouldIncludeTeachers } from 'src/common/utils/query.utils';
 import { PaginatedResult } from 'src/common/dto/pagination.dto';
+import { paginate } from 'src/common/utils/pagination.utils';
 
 @Injectable()
 export class SubjectService {
@@ -34,16 +35,12 @@ export class SubjectService {
     limit?: number;
   }): Promise<PaginatedResult<ReturnType<Subject['toResponse']>>> {
     const { subjects, total } = await this.subjectRepository.search(params);
-    const page = params.page ?? 1;
-    const limit = params.limit ?? 10;
-    const totalPages = Math.ceil(total / limit);
-    return {
-      data: subjects.map((s) => this.mapToResponse(s)),
+    return paginate(
+      subjects.map((s) => this.mapToResponse(s)),
       total,
-      page,
-      limit,
-      totalPages,
-    };
+      params.page,
+      params.limit,
+    );
   }
 
   async findByName(name: string, institutionId: number) {
@@ -94,16 +91,7 @@ export class SubjectService {
       page,
       limit,
     );
-    const currentPage = page ?? 1;
-    const pageLimit = limit ?? 10;
-    const totalPages = Math.ceil(total / pageLimit);
-    return {
-      data: subjects.map(this.mapToResponse),
-      total,
-      page: currentPage,
-      limit: pageLimit,
-      totalPages,
-    };
+    return paginate(subjects.map(this.mapToResponse), total, page, limit);
   }
 
   async update(id: number, dto: UpdateSubjectDto, institutionId?: number) {
@@ -125,17 +113,26 @@ export class SubjectService {
     await this.subjectRepository.remove(id);
   }
 
+  /**
+   * Привязывает преподавателей к предмету.
+   * В API приходят userId (из TeacherListItem), в БД teacher_subjects хранит teachers.id — преобразуем.
+   */
   async assignTeachers(
     subjectId: number,
     teacherIds: number[],
     institutionId: number,
   ) {
     await this.findById(subjectId, institutionId);
-    for (const teacherId of teacherIds) {
-      await this.teacherService.findById(teacherId, institutionId);
+    const resolvedIds: number[] = [];
+    for (const userId of teacherIds) {
+      const teacher = await this.teacherService.findByUserId(userId, institutionId);
+      if (!teacher || teacher.id == null) {
+        throw new NotFoundException(`Преподаватель (userId: ${userId}) не найден`);
+      }
+      resolvedIds.push(teacher.id);
     }
 
-    const existing = await this.subjectRepository.findExistingTeachersBySubject(subjectId, teacherIds);
+    const existing = await this.subjectRepository.findExistingTeachersBySubject(subjectId, resolvedIds);
     if (existing.length > 0) {
       const names = existing.map((t) => `«${t.name}»`).join(', ');
       throw new ConflictException(
@@ -143,14 +140,21 @@ export class SubjectService {
       );
     }
 
-    await this.subjectRepository.assignTeachers(subjectId, teacherIds);
+    await this.subjectRepository.assignTeachers(subjectId, resolvedIds);
     return this.findById(subjectId, institutionId);
   }
 
+  /**
+   * Отвязывает преподавателя от предмета.
+   * В API приходит userId (параметр teacherId в URL — это userId с фронта), в БД нужен teachers.id.
+   */
   async unassignTeacher(subjectId: number, teacherId: number, institutionId: number) {
     await this.findById(subjectId, institutionId);
-    await this.teacherService.findById(teacherId, institutionId);
-    await this.subjectRepository.unassignTeacher(subjectId, teacherId);
+    const teacher = await this.teacherService.findByUserId(teacherId, institutionId);
+    if (!teacher || teacher.id == null) {
+      throw new NotFoundException(`Преподаватель (userId: ${teacherId}) не найден`);
+    }
+    await this.subjectRepository.unassignTeacher(subjectId, teacher.id);
   }
 
   async assignGroups(subjectId: number, groupIds: number[], institutionId: number) {

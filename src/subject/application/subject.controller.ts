@@ -4,6 +4,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   NotFoundException,
   Param,
   ParseIntPipe,
@@ -43,9 +45,11 @@ import { SearchQueryDto } from 'src/common/dto/search-query.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN, Role.MODERATOR)
 export class SubjectController {
+  /** Специфичные пути (search, by-name и т.д.) должны быть объявлены выше Get(':id'). */
   constructor(private readonly subjectService: SubjectService) { }
 
   @Post()
+  @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Создать предмет' })
   @ApiResponse({
     status: 201,
@@ -63,7 +67,10 @@ export class SubjectController {
   }
 
   @Get('search')
-  @ApiOperation({ summary: 'Поиск предметов с пагинацией' })
+  @ApiOperation({
+    summary: 'Поиск предметов с пагинацией',
+    description: 'Поиск по строке query. Для полного списка используйте GET /subject.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
@@ -93,7 +100,10 @@ export class SubjectController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Список предметов учреждения с пагинацией' })
+  @ApiOperation({
+    summary: 'Список предметов учреждения с пагинацией',
+    description: 'Полный список предметов. Для поиска используйте GET /subject/search.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
