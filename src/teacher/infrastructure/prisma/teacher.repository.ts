@@ -6,18 +6,44 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Teacher } from 'src/teacher/domain/entities/teacher.entity';
-import { FindTeacherOptions, ITeacherRepository } from 'src/teacher/domain/teacher-repository.interface';
+import {
+  FindTeacherOptions,
+  IFindTeachersByInstitutionParams,
+  ITeacherRepository,
+} from 'src/teacher/domain/teacher-repository.interface';
 import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class TeacherRepository implements ITeacherRepository {
   constructor(private readonly prisma: PrismaService) { }
 
-  private mapToDomain(raw: Prisma.TeacherGetPayload<{ include?: { user: true } }>, includeUser?: boolean): Teacher {
+  /** Маппинг сырой записи в домен. При include group — group для курируемой группы; при teacherSubjects — список предметов. */
+  private mapToDomain(
+    raw: Prisma.TeacherGetPayload<{
+      include?: { user?: true; group?: true; teacherSubjects?: { include: { subject: true } } };
+    }>,
+    includeUser?: boolean,
+  ): Teacher {
+    type GroupPayload = { id: number; name: string; institutionId: number };
+    type TeacherSubjectPayload = { subject: { id: number; name: string } };
+    const groupPayload: GroupPayload | undefined =
+      'group' in raw && raw.group != null
+        ? (raw.group as GroupPayload)
+        : undefined;
+    const subjects =
+      'teacherSubjects' in raw &&
+      Array.isArray((raw as { teacherSubjects?: TeacherSubjectPayload[] }).teacherSubjects)
+        ? (raw as { teacherSubjects: TeacherSubjectPayload[] }).teacherSubjects.map((ts) => ({
+            id: ts.subject.id,
+            name: ts.subject.name,
+          }))
+        : undefined;
     const teacher = Teacher.fromPersistence({
       id: raw.id,
       userId: raw.userId,
       mentoredGroupId: raw.mentoredGroupId,
+      ...(groupPayload && { group: groupPayload }),
+      ...(subjects?.length && { subjects }),
     });
 
     if (includeUser && 'user' in raw && raw.user) {
@@ -65,6 +91,47 @@ export class TeacherRepository implements ITeacherRepository {
       include,
     });
     return raw ? this.mapToDomain(raw, options?.includeUser) : null;
+  }
+
+  async findByInstitutionId(
+    institutionId: number,
+    params?: IFindTeachersByInstitutionParams,
+  ): Promise<{ teachers: Teacher[]; total: number }> {
+    const page = params?.page ?? 1;
+    const limit = params?.limit ?? 10;
+    const query = params?.query?.trim();
+    const skip = (page - 1) * limit;
+
+    const where = {
+      user: {
+        institutionId,
+        ...(query && {
+          OR: [
+            { name: { contains: query, mode: 'insensitive' as const } },
+            { surname: { contains: query, mode: 'insensitive' as const } },
+            { email: { contains: query, mode: 'insensitive' as const } },
+          ],
+        }),
+      },
+    };
+
+    const [total, raw] = await Promise.all([
+      this.prisma.teacher.count({ where }),
+      this.prisma.teacher.findMany({
+        where,
+        include: {
+          user: true,
+          group: true,
+          teacherSubjects: { include: { subject: true } },
+        },
+        skip,
+        take: limit,
+        orderBy: { id: 'asc' },
+      }),
+    ]);
+
+    const teachers = raw.map((r) => this.mapToDomain(r, true));
+    return { teachers, total };
   }
 
   async findBySubjectId(

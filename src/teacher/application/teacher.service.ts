@@ -8,7 +8,10 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { ITeacherRepository } from 'src/teacher/domain/teacher-repository.interface';
+import type {
+  ITeacherRepository,
+  IFindTeachersByInstitutionParams,
+} from 'src/teacher/domain/teacher-repository.interface';
 import { Teacher } from 'src/teacher/domain/entities/teacher.entity';
 import { ICreateTeacherParams } from './interfaces/interfaces';
 import { UserService } from 'src/user/application/user.service';
@@ -77,6 +80,25 @@ export class TeacherService {
       if (!user) throw new ForbiddenException('Нет доступа к преподавателю из другого учреждения');
     }
     return teacher;
+  }
+
+  async findByInstitutionId(
+    institutionId: number,
+    params?: IFindTeachersByInstitutionParams,
+  ) {
+    const { teachers, total } = await this.teacherRepository.findByInstitutionId(
+      institutionId,
+      params,
+    );
+    const page = params?.page ?? 1;
+    const limit = params?.limit ?? 10;
+    return {
+      data: teachers.map((t) => t.toResponse(true)),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
+    };
   }
 
   async findByMentoredGroupId(
