@@ -10,7 +10,6 @@ import { CreateBellTemplateDto } from './dto/create-bell-template.dto';
 import { UpdateBellTemplateDto } from './dto/update-bell-template.dto';
 import type { BulkScopeBodyDto, BulkScopeDeleteBodyDto } from './dto/bulk-scope.dto';
 import { paginate } from 'src/common/utils/pagination.utils';
-import { PaginatedResult } from 'src/common/dto/pagination.dto';
 import { ScheduleType } from '@prisma/client';
 
 @Injectable()
@@ -22,6 +21,54 @@ export class BellTemplateService {
 
   private mapToResponse(template: BellTemplate) {
     return template.toResponse();
+  }
+
+  private toDate(value: Date | string | null | undefined): Date | null {
+    return value == null ? null : new Date(value);
+  }
+
+  private validateTimeSegments(params: {
+    startTime: Date | string | null | undefined;
+    endTime: Date | string | null | undefined;
+    secondStartTime?: Date | string | null;
+    secondEndTime?: Date | string | null;
+  }): void {
+    const startTime = this.toDate(params.startTime);
+    const endTime = this.toDate(params.endTime);
+    const secondStartTime = this.toDate(params.secondStartTime);
+    const secondEndTime = this.toDate(params.secondEndTime);
+
+    if (!startTime || !endTime) {
+      throw new BadRequestException(
+        'Не указаны обязательные поля: scheduleType, lessonNumber, startTime, endTime',
+      );
+    }
+
+    if (startTime >= endTime) {
+      throw new BadRequestException('Время окончания должно быть позже времени начала');
+    }
+
+    const hasSecondStart = secondStartTime != null;
+    const hasSecondEnd = secondEndTime != null;
+    if (hasSecondStart !== hasSecondEnd) {
+      throw new BadRequestException(
+        'Второй сегмент должен содержать и время начала, и время окончания',
+      );
+    }
+
+    if (!hasSecondStart || !hasSecondEnd) {
+      return;
+    }
+
+    if (secondStartTime >= secondEndTime) {
+      throw new BadRequestException(
+        'Время окончания второго сегмента должно быть позже времени начала',
+      );
+    }
+
+    if (endTime > secondStartTime) {
+      throw new BadRequestException('Второй сегмент должен начинаться не раньше окончания первого');
+    }
   }
 
   /** Создать шаблон звонков */
@@ -38,6 +85,12 @@ export class BellTemplateService {
         'Не указаны обязательные поля: scheduleType, lessonNumber, startTime, endTime',
       );
     }
+    this.validateTimeSegments({
+      startTime: normalizedData.startTime,
+      endTime: normalizedData.endTime,
+      secondStartTime: normalizedData.secondStartTime,
+      secondEndTime: normalizedData.secondEndTime,
+    });
 
     const template = BellTemplate.create({
       institutionId,
@@ -49,6 +102,8 @@ export class BellTemplateService {
       lessonNumber,
       startTime: new Date(startTime),
       endTime: new Date(endTime),
+      secondStartTime: this.toDate(normalizedData.secondStartTime),
+      secondEndTime: this.toDate(normalizedData.secondEndTime),
     });
 
     const created = await this.bellTemplateRepository.create(template);
@@ -88,7 +143,7 @@ export class BellTemplateService {
     });
 
     return paginate(
-      templates.map(this.mapToResponse),
+      templates.map((template) => this.mapToResponse(template)),
       total,
       filters?.page,
       filters?.limit,
@@ -96,11 +151,7 @@ export class BellTemplateService {
   }
 
   /** Обновить шаблон */
-  async update(
-    id: number,
-    updateDto: UpdateBellTemplateDto,
-    institutionId?: number,
-  ) {
+  async update(id: number, updateDto: UpdateBellTemplateDto, institutionId?: number) {
     const existing = await this.bellTemplateRepository.findById(id);
     if (!existing) {
       throw new NotFoundException('Шаблон звонков не найден');
@@ -125,8 +176,23 @@ export class BellTemplateService {
       lessonNumber: number;
       startTime: Date;
       endTime: Date;
+      secondStartTime: Date | null;
+      secondEndTime: Date | null;
     }>;
     const updateData: UpdatePayload = {};
+    this.validateTimeSegments({
+      startTime: normalizedData.startTime ?? existing.startTime,
+      endTime: normalizedData.endTime ?? existing.endTime,
+      secondStartTime:
+        normalizedData.secondStartTime !== undefined
+          ? normalizedData.secondStartTime
+          : existing.secondStartTime,
+      secondEndTime:
+        normalizedData.secondEndTime !== undefined
+          ? normalizedData.secondEndTime
+          : existing.secondEndTime,
+    });
+
     if (normalizedData.groupId !== undefined) {
       updateData.groupId = normalizedData.groupId ?? null;
     }
@@ -150,6 +216,12 @@ export class BellTemplateService {
     }
     if (normalizedData.endTime !== undefined) {
       updateData.endTime = new Date(normalizedData.endTime);
+    }
+    if (normalizedData.secondStartTime !== undefined) {
+      updateData.secondStartTime = this.toDate(normalizedData.secondStartTime);
+    }
+    if (normalizedData.secondEndTime !== undefined) {
+      updateData.secondEndTime = this.toDate(normalizedData.secondEndTime);
     }
 
     const updated = await this.bellTemplateRepository.update(id, updateData);
@@ -194,13 +266,16 @@ export class BellTemplateService {
     const update: IBulkScopeUpdate = {};
     if (updateDto.groupId !== undefined) update.groupId = updateDto.groupId ?? null;
     if (updateDto.scheduleType !== undefined) update.scheduleType = updateDto.scheduleType;
-    if (updateDto.specificDate !== undefined) update.specificDate = new Date(updateDto.specificDate);
+    if (updateDto.specificDate !== undefined)
+      update.specificDate = new Date(updateDto.specificDate);
     if (updateDto.weekdayStart !== undefined) update.weekdayStart = updateDto.weekdayStart;
     if (updateDto.weekdayEnd !== undefined) update.weekdayEnd = updateDto.weekdayEnd;
 
     const hasAnyUpdate = Object.keys(update).length > 0;
     if (!hasAnyUpdate) {
-      throw new BadRequestException('В блоке "update" должен быть указан хотя бы один параметр scope.');
+      throw new BadRequestException(
+        'В блоке "update" должен быть указан хотя бы один параметр scope.',
+      );
     }
 
     // Нормализация: при смене типа расписания очищаем противоположные поля
@@ -218,7 +293,10 @@ export class BellTemplateService {
    * Удалить весь шаблон по scope — все строки (все номера уроков), попадающие под фильтр.
    * Один запрос, одна операция. Если любая из строк используется в расписании — 409.
    */
-  async bulkDeleteByScope(dto: BulkScopeDeleteBodyDto, institutionId: number): Promise<{ count: number }> {
+  async bulkDeleteByScope(
+    dto: BulkScopeDeleteBodyDto,
+    institutionId: number,
+  ): Promise<{ count: number }> {
     const filterDto = dto.filter;
 
     const filter: IBulkScopeFilter = {
@@ -249,6 +327,8 @@ export class BellTemplateService {
     lessonNumber?: number;
     startTime?: Date;
     endTime?: Date;
+    secondStartTime?: Date | null;
+    secondEndTime?: Date | null;
   } {
     const scheduleType = dto.scheduleType ?? existing?.scheduleType;
 

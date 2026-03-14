@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   NotFoundException,
   Param,
   ParseIntPipe,
@@ -31,11 +33,20 @@ import { CreateBellTemplateDto } from './dto/create-bell-template.dto';
 import { UpdateBellTemplateDto } from './dto/update-bell-template.dto';
 import { BellTemplateResponseDto } from './dto/bell-template-response.dto';
 import { BulkScopeBodyDto, BulkScopeDeleteBodyDto } from './dto/bulk-scope.dto';
-import { IsOptional, IsEnum, IsInt, Min } from 'class-validator';
+import { IsOptional, IsEnum, IsInt, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /** DTO для query-параметров фильтрации списка шаблонов */
 class BellTemplateQueryDto extends PaginationDto {
+  // Переопределяем limit: для списка шаблонов звонков разрешаем до 500 (в базе PaginationDto — max 100)
+  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 500, description: 'Записей на странице' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Лимит должен быть числом' })
+  @Min(1, { message: 'Лимит должен быть больше 0' })
+  @Max(500, { message: 'Лимит не может быть больше 500' })
+  limit?: number = 10;
+
   @ApiPropertyOptional({ type: Number, description: 'ID группы (не передавать = все шаблоны)' })
   @IsOptional()
   @Type(() => Number)
@@ -54,11 +65,13 @@ class BellTemplateQueryDto extends PaginationDto {
 @ApiExtraModels(BellTemplateResponseDto, ResponseMetaDto)
 @Controller('bell-template')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.ADMIN, Role.MODERATOR)
 export class BellTemplateController {
+  /** Специфичные пути (bulk-scope и т.д.) должны быть объявлены выше Get(':id'). */
   constructor(private readonly bellTemplateService: BellTemplateService) {}
 
   @Post()
+  @Roles(Role.ADMIN, Role.MODERATOR)
+  @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Создать шаблон звонков' })
   @ApiResponse({
     status: 201,
@@ -71,7 +84,7 @@ export class BellTemplateController {
   async create(
     @Body() createBellTemplateDto: CreateBellTemplateDto,
     @GetUser() user: IAccessToken,
-  ): Promise<ApiSuccessResponse<any>> {
+  ): Promise<ApiSuccessResponse<BellTemplateResponseDto>> {
     const data = await this.bellTemplateService.create(
       createBellTemplateDto,
       user.institutionId,
@@ -118,6 +131,7 @@ export class BellTemplateController {
   }
 
   @Patch('bulk-scope')
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Массово изменить scope у строк шаблона (один запрос — одна транзакция)' })
   @ApiResponse({
     status: 200,
@@ -147,6 +161,7 @@ export class BellTemplateController {
   }
 
   @Delete('bulk-scope')
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Удалить весь шаблон по scope (все строки с данным scope)' })
   @ApiResponse({
     status: 200,
@@ -194,6 +209,7 @@ export class BellTemplateController {
   }
 
   @Patch(':id')
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Обновить шаблон звонков' })
   @ApiResponse({
     status: 200,
@@ -222,6 +238,7 @@ export class BellTemplateController {
   }
 
   @Delete(':id')
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Удалить шаблон звонков' })
   @ApiResponse({ status: 200, description: 'Шаблон удалён', schema: API_SUCCESS_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })

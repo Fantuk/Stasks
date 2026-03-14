@@ -1,9 +1,5 @@
-import {
-  Injectable,
-  ConflictException,
-  InternalServerErrorException,
-} from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Injectable, ConflictException, InternalServerErrorException } from '@nestjs/common';
+import { Prisma, ScheduleType } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { BellTemplate } from 'src/bell-template/domain/entities/bell-template.entity';
 import type {
@@ -24,6 +20,8 @@ const bellTemplateSelect = {
   lessonNumber: true,
   startTime: true,
   endTime: true,
+  secondStartTime: true,
+  secondEndTime: true,
 } as const;
 
 @Injectable()
@@ -34,25 +32,29 @@ export class BellTemplateRepository implements IBellTemplateRepository {
     id: number;
     institutionId: number;
     groupId: number | null;
-    scheduleType: string;
+    scheduleType: ScheduleType;
     specificDate: Date | null;
     weekdayStart: number | null;
     weekdayEnd: number | null;
     lessonNumber: number;
     startTime: Date;
     endTime: Date;
+    secondStartTime: Date | null;
+    secondEndTime: Date | null;
   }): BellTemplate {
     return BellTemplate.fromPersistence({
       id: raw.id,
       institutionId: raw.institutionId,
       groupId: raw.groupId,
-      scheduleType: raw.scheduleType as any,
+      scheduleType: raw.scheduleType,
       specificDate: raw.specificDate,
       weekdayStart: raw.weekdayStart,
       weekdayEnd: raw.weekdayEnd,
       lessonNumber: raw.lessonNumber,
       startTime: raw.startTime,
       endTime: raw.endTime,
+      secondStartTime: raw.secondStartTime,
+      secondEndTime: raw.secondEndTime,
     });
   }
 
@@ -60,17 +62,6 @@ export class BellTemplateRepository implements IBellTemplateRepository {
     data: Omit<BellTemplate, 'id' | 'toPersistence' | 'toResponse'>,
   ): Promise<BellTemplate> {
     try {
-      const template = BellTemplate.create({
-        institutionId: data.institutionId,
-        groupId: data.groupId,
-        scheduleType: data.scheduleType,
-        specificDate: data.specificDate,
-        weekdayStart: data.weekdayStart,
-        weekdayEnd: data.weekdayEnd,
-        lessonNumber: data.lessonNumber,
-        startTime: data.startTime,
-        endTime: data.endTime,
-      });
       // Используем connect для связей, чтобы Prisma проверил существование institution и group
       const createData: Prisma.BellTemplateCreateInput = {
         institution: { connect: { id: data.institutionId } },
@@ -81,6 +72,8 @@ export class BellTemplateRepository implements IBellTemplateRepository {
         lessonNumber: data.lessonNumber,
         startTime: data.startTime,
         endTime: data.endTime,
+        secondStartTime: data.secondStartTime,
+        secondEndTime: data.secondEndTime,
       };
       if (data.groupId != null) {
         createData.group = { connect: { id: data.groupId } };
@@ -106,9 +99,7 @@ export class BellTemplateRepository implements IBellTemplateRepository {
       }
       // Логируем исходную ошибку для отладки (в проде можно убрать или писать в логгер)
       const message = error instanceof Error ? error.message : String(error);
-      throw new InternalServerErrorException(
-        `Ошибка при создании шаблона звонков: ${message}`,
-      );
+      throw new InternalServerErrorException(`Ошибка при создании шаблона звонков: ${message}`);
     }
   }
 
@@ -161,8 +152,7 @@ export class BellTemplateRepository implements IBellTemplateRepository {
     }
 
     const total = await this.prisma.bellTemplate.count({ where });
-    const skip =
-      params.page && params.limit ? (params.page - 1) * params.limit : undefined;
+    const skip = params.page && params.limit ? (params.page - 1) * params.limit : undefined;
     const take = params.limit;
 
     const raw = await this.prisma.bellTemplate.findMany({
@@ -170,31 +160,23 @@ export class BellTemplateRepository implements IBellTemplateRepository {
       select: bellTemplateSelect,
       skip,
       take,
-      orderBy: [
-        { groupId: 'asc' },
-        { scheduleType: 'asc' },
-        { lessonNumber: 'asc' },
-      ],
+      orderBy: [{ groupId: 'asc' }, { scheduleType: 'asc' }, { lessonNumber: 'asc' }],
     });
 
     return {
-      templates: raw.map(this.mapToDomain),
+      templates: raw.map((item) => this.mapToDomain(item)),
       total,
     };
   }
 
-  async update(
-    id: number,
-    data: Partial<Omit<BellTemplate, 'id'>>,
-  ): Promise<BellTemplate> {
+  async update(id: number, data: Partial<Omit<BellTemplate, 'id'>>): Promise<BellTemplate> {
     try {
       // Prisma UpdateInput для связей использует connect/disconnect, не скалярные поля
       const updateData: Prisma.BellTemplateUpdateInput = {};
 
       if (data.groupId !== undefined) {
-        updateData.group = data.groupId !== null
-          ? { connect: { id: data.groupId } }
-          : { disconnect: true };
+        updateData.group =
+          data.groupId !== null ? { connect: { id: data.groupId } } : { disconnect: true };
       }
       if (data.scheduleType !== undefined) updateData.scheduleType = data.scheduleType;
       if (data.specificDate !== undefined) updateData.specificDate = data.specificDate;
@@ -203,6 +185,8 @@ export class BellTemplateRepository implements IBellTemplateRepository {
       if (data.lessonNumber !== undefined) updateData.lessonNumber = data.lessonNumber;
       if (data.startTime !== undefined) updateData.startTime = data.startTime;
       if (data.endTime !== undefined) updateData.endTime = data.endTime;
+      if (data.secondStartTime !== undefined) updateData.secondStartTime = data.secondStartTime;
+      if (data.secondEndTime !== undefined) updateData.secondEndTime = data.secondEndTime;
 
       const updated = await this.prisma.bellTemplate.update({
         where: { id },
@@ -258,9 +242,8 @@ export class BellTemplateRepository implements IBellTemplateRepository {
 
     const updateData: Prisma.BellTemplateUpdateInput = {};
     if (update.groupId !== undefined) {
-      updateData.group = update.groupId !== null
-        ? { connect: { id: update.groupId } }
-        : { disconnect: true };
+      updateData.group =
+        update.groupId !== null ? { connect: { id: update.groupId } } : { disconnect: true };
     }
     if (update.scheduleType !== undefined) {
       updateData.scheduleType = update.scheduleType;
@@ -334,9 +317,7 @@ export class BellTemplateRepository implements IBellTemplateRepository {
           );
         }
       }
-      throw new InternalServerErrorException(
-        'Ошибка при массовом удалении шаблонов звонков',
-      );
+      throw new InternalServerErrorException('Ошибка при массовом удалении шаблонов звонков');
     }
   }
 
@@ -346,9 +327,7 @@ export class BellTemplateRepository implements IBellTemplateRepository {
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2003') {
-          throw new ConflictException(
-            'Невозможно удалить: шаблон используется в расписании',
-          );
+          throw new ConflictException('Невозможно удалить: шаблон используется в расписании');
         }
         if (error.code === 'P2025') {
           throw new InternalServerErrorException('Шаблон не найден');

@@ -12,6 +12,8 @@ export type BellTemplatePersistence = {
   lessonNumber: number;
   startTime: Date;
   endTime: Date;
+  secondStartTime: Date | null;
+  secondEndTime: Date | null;
 };
 
 /** Доменная сущность шаблона звонков (время начала/конца уроков) */
@@ -27,6 +29,8 @@ export class BellTemplate {
     public readonly lessonNumber: number,
     public readonly startTime: Date,
     public readonly endTime: Date,
+    public readonly secondStartTime: Date | null,
+    public readonly secondEndTime: Date | null,
   ) {}
 
   static create(params: Omit<BellTemplatePersistence, 'id'>): BellTemplate {
@@ -41,6 +45,8 @@ export class BellTemplate {
       params.lessonNumber,
       params.startTime,
       params.endTime,
+      params.secondStartTime ?? null,
+      params.secondEndTime ?? null,
     );
   }
 
@@ -56,6 +62,8 @@ export class BellTemplate {
       raw.lessonNumber,
       raw.startTime,
       raw.endTime,
+      raw.secondStartTime ?? null,
+      raw.secondEndTime ?? null,
     );
   }
 
@@ -71,6 +79,8 @@ export class BellTemplate {
       lessonNumber: this.lessonNumber,
       startTime: this.startTime,
       endTime: this.endTime,
+      secondStartTime: this.secondStartTime,
+      secondEndTime: this.secondEndTime,
     };
   }
 
@@ -86,6 +96,8 @@ export class BellTemplate {
       lessonNumber: this.lessonNumber,
       startTime: this.startTime,
       endTime: this.endTime,
+      secondStartTime: this.secondStartTime,
+      secondEndTime: this.secondEndTime,
     };
   }
 }
