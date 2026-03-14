@@ -1,7 +1,7 @@
 import { Injectable, ConflictException, InternalServerErrorException } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
 import { Group } from "src/group/domain/entities/group.entity";
-import { IGroupRepository } from "src/group/domain/group-repository.interface";
+import { IGroupRepository, ISearchGroupsParams, GroupWithStudentCount, MentorSummary } from "src/group/domain/group-repository.interface";
 import { Prisma } from "@prisma/client";
 
 @Injectable()
@@ -13,6 +13,30 @@ export class GroupRepository implements IGroupRepository {
         institutionId: true,
         name: true
     } as const
+
+    /** Select для списка: базовые поля + количество студентов + куратор (teacher + user) */
+    private readonly groupListSelect = {
+        ...this.groupSelect,
+        _count: { select: { students: true } as const },
+        teacher: {
+            select: {
+                id: true,
+                userId: true,
+                user: { select: { name: true, surname: true, patronymic: true } }
+            }
+        }
+    } as const
+
+    /** Собирает отображаемое имя куратора из полей пользователя (Фамилия Имя Отчество) */
+    private mentorSummary(raw: { id: number; userId: number; user: { name: string; surname: string; patronymic: string | null } }): MentorSummary {
+        const u = raw.user;
+        const parts = [u.surname, u.name, u.patronymic].filter(Boolean);
+        return {
+            id: raw.id,
+            userId: raw.userId,
+            displayName: parts.length ? parts.join(' ') : '—'
+        };
+    }
 
     private mapToDomain(raw: Prisma.GroupGetPayload<{}>): Group {
         return Group.fromPersistence({
@@ -51,25 +75,35 @@ export class GroupRepository implements IGroupRepository {
     async findByInstitutionId(
         institutionId: number,
         page?: number,
-        limit?: number
-    ): Promise<{ groups: Group[]; total: number; }> {
+        limit?: number,
+        sort?: string,
+        order?: 'asc' | 'desc',
+    ): Promise<{ groups: GroupWithStudentCount[]; total: number }> {
         const skip = page && limit ? (page - 1) * limit : undefined;
-        const take = limit
+        const take = limit;
 
         const total = await this.prisma.group.count({
             where: { institutionId }
         })
 
+        const sortField = (sort === 'name' || sort === 'id') ? sort : 'id';
+        const orderDir = order ?? 'asc';
+        const orderBy = { [sortField]: orderDir };
+
         const raw = await this.prisma.group.findMany({
             where: { institutionId },
-            select: this.groupSelect,
+            select: this.groupListSelect,
             skip,
             take,
-            orderBy: { id: "asc" }
+            orderBy,
         })
 
         return {
-            groups: raw.map(this.mapToDomain),
+            groups: raw.map((r) => ({
+                group: this.mapToDomain({ id: r.id, institutionId: r.institutionId, name: r.name }),
+                studentCount: r._count.students,
+                mentor: r.teacher ? this.mentorSummary(r.teacher) : undefined,
+            })),
             total
         }
     }
@@ -95,12 +129,7 @@ export class GroupRepository implements IGroupRepository {
         return raw.map(this.mapToDomain);
     }
 
-    async search(params: {
-        institutionId: number;
-        query?: string;
-        page?: number;
-        limit?: number;
-      }): Promise<{ groups: Group[]; total: number }> {
+    async search(params: ISearchGroupsParams): Promise<{ groups: GroupWithStudentCount[]; total: number }> {
         const where: Prisma.GroupWhereInput = { institutionId: params.institutionId };
         if (params.query?.trim()) {
           where.name = { contains: params.query.trim(), mode: 'insensitive' };
@@ -109,17 +138,24 @@ export class GroupRepository implements IGroupRepository {
         const total = await this.prisma.group.count({ where });
         const skip = params.page && params.limit ? (params.page - 1) * params.limit : undefined;
         const take = params.limit;
+        const sortField = (params.sort === 'name' || params.sort === 'id') ? params.sort : 'id';
+        const orderDir = params.order ?? 'asc';
+        const orderBy = { [sortField]: orderDir };
     
         const raw = await this.prisma.group.findMany({
           where,
-          select: this.groupSelect,
+          select: this.groupListSelect,
           skip,
           take,
-          orderBy: { id: 'asc' },
+          orderBy,
         });
     
         return {
-          groups: raw.map(this.mapToDomain),
+          groups: raw.map((r) => ({
+            group: this.mapToDomain({ id: r.id, institutionId: r.institutionId, name: r.name }),
+            studentCount: r._count.students,
+            mentor: r.teacher ? this.mentorSummary(r.teacher) : undefined,
+          })),
           total,
         };
       }

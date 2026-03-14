@@ -15,6 +15,7 @@ import { PaginatedResult } from 'src/common/dto/pagination.dto';
 export class GroupService {
     constructor(
         @Inject('GroupRepository') private readonly groupRepository: IGroupRepository,
+        /** forwardRef из-за цикла GroupService ↔ TeacherService (назначение куратора). Не заменять на прямой импорт. */
         @Inject(forwardRef(() => TeacherService))
         private readonly teacherService: TeacherService,
         private readonly studentService: StudentService,
@@ -61,14 +62,27 @@ export class GroupService {
     async findByInstitutionId(
         institutionId: number,
         page?: number,
-        limit?: number
+        limit?: number,
+        sort?: string,
+        order?: 'asc' | 'desc',
     ) {
         const { groups, total } = await this.groupRepository.findByInstitutionId(
             institutionId,
             page,
-            limit
+            limit,
+            sort,
+            order,
         )
-        return paginate(groups.map(this.mapToResponse), total, page, limit)
+        return paginate(
+            groups.map(({ group, studentCount, mentor }) => ({
+                ...this.mapToResponse(group),
+                studentCount,
+                mentor,
+            })),
+            total,
+            page,
+            limit,
+        )
     }
 
     async findByName(name: string, institutionId: number) {
@@ -100,8 +114,7 @@ export class GroupService {
         subjectId: number,
         institutionId?: number,
     ): Promise<Group[]> {
-        const groups = await this.groupRepository.findBySubjectId(subjectId, institutionId);
-        return groups.filter((g) => g.institutionId === institutionId);
+        return this.groupRepository.findBySubjectId(subjectId, institutionId);
     }
 
     async search(params: {
@@ -109,10 +122,16 @@ export class GroupService {
         query?: string;
         page?: number;
         limit?: number;
-      }): Promise<PaginatedResult<ReturnType<Group['toResponse']>>> {
+        sort?: string;
+        order?: 'asc' | 'desc';
+      }): Promise<PaginatedResult<ReturnType<Group['toResponse']> & { studentCount?: number; mentor?: { id: number; userId: number; displayName: string } }>> {
         const { groups, total } = await this.groupRepository.search(params);
         return paginate(
-          groups.map((g) => this.mapToResponse(g)),
+          groups.map(({ group, studentCount, mentor }) => ({
+            ...this.mapToResponse(group),
+            studentCount,
+            mentor,
+          })),
           total,
           params.page,
           params.limit,
@@ -168,11 +187,11 @@ export class GroupService {
 
     async unassignTeacher(groupId: number, institutionId: number) {
         await this.findById(groupId, institutionId);
-        const teacher = await this.teacherService.removeMentoredGroupByGroupId(
+        await this.teacherService.removeMentoredGroupByGroupId(
             groupId,
             institutionId,
         );
-        return teacher ? teacher.toResponse() : null;
+        return this.findById(groupId, institutionId);
     }
 
     async assignStudents(

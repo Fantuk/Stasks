@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiExtraModels, getSchemaPath } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -15,24 +15,40 @@ import {
   createSuccessResponseSchema,
 } from 'src/common/interfaces/api-response.interface';
 import { ResponseMetaDto } from 'src/common/interfaces/api-response.interface';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
-import { GroupResponseDto } from 'src/group/application/dto/group-response.dto';
+import { GroupResponseDto, GroupMentorDto } from 'src/group/application/dto/group-response.dto';
+import { Type } from 'class-transformer';
+import { IsOptional, IsInt, Min, Max } from 'class-validator';
 import { UpdateGroupDto } from './dto/update-group.dto';
 import { AssignStudentsDto } from './dto/assign-students.dto';
 import { AssignTeacherDto } from './dto/assign-teacher.dto';
 import { parseIncludeOption } from 'src/common/utils/query.utils';
 import { SearchQueryDto } from 'src/common/dto/search-query.dto';
 
+/** DTO для списка групп: разрешаем limit до 500 (для выбора групп на странице звонков и т.д.) */
+class GroupQueryDto extends PaginationDto {
+  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 500, description: 'Записей на странице' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Лимит должен быть числом' })
+  @Min(1, { message: 'Лимит должен быть больше 0' })
+  @Max(500, { message: 'Лимит не может быть больше 500' })
+  limit?: number = 10;
+}
+
 @ApiTags('Groups')
 @ApiBearerAuth('JWT')
-@ApiExtraModels(GroupResponseDto, ResponseMetaDto)
+@ApiExtraModels(GroupResponseDto, GroupMentorDto, ResponseMetaDto)
 @Controller('group')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.ADMIN, Role.MODERATOR)
 export class GroupController {
+  /** Специфичные пути (search, by-name, bulk и т.д.) должны быть объявлены выше Get(':id'). */
   constructor(private readonly groupService: GroupService) { }
 
   @Post()
+  @Roles(Role.ADMIN, Role.MODERATOR)
+  @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Создать группу' })
   @ApiResponse({
     status: 201,
@@ -54,7 +70,10 @@ export class GroupController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Список групп учреждения с пагинацией' })
+  @ApiOperation({
+    summary: 'Список групп учреждения с пагинацией',
+    description: 'Полный список групп. Для поиска по названию используйте GET /group/search.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
@@ -63,12 +82,14 @@ export class GroupController {
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async findAll(
     @GetUser() user: IAccessToken,
-    @Query() paginationDto: PaginationDto,
+    @Query() queryDto: GroupQueryDto,
   ) {
     const result = await this.groupService.findByInstitutionId(
       user.institutionId,
-      paginationDto.page,
-      paginationDto.limit,
+      queryDto.page,
+      queryDto.limit,
+      queryDto.sort,
+      queryDto.order,
     );
     return {
       success: true,
@@ -83,6 +104,7 @@ export class GroupController {
   }
 
   @Post(':id/teacher')
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Назначить куратора группы' })
   @ApiResponse({
     status: 200,
@@ -105,10 +127,11 @@ export class GroupController {
   }
 
   @Delete(':id/teacher')
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Убрать куратора группы' })
   @ApiResponse({
     status: 200,
-    description: 'Куратор отвязан',
+    description: 'Возвращается обновлённая группа (поле teacher будет null после отвязки)',
     schema: createSuccessResponseSchema(getSchemaPath(GroupResponseDto)),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
@@ -121,6 +144,7 @@ export class GroupController {
   }
 
   @Post(':id/students')
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Привязать студентов к группе' })
   @ApiResponse({
     status: 200,
@@ -143,6 +167,7 @@ export class GroupController {
   }
 
   @Delete(':id/students')
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Отвязать студентов от группы' })
   @ApiResponse({
     status: 200,
@@ -186,7 +211,10 @@ export class GroupController {
   }
 
   @Get('search')
-  @ApiOperation({ summary: 'Поиск групп с пагинацией' })
+  @ApiOperation({
+    summary: 'Поиск групп с пагинацией',
+    description: 'Поиск по строке query. Для полного списка используйте GET /group.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
@@ -202,6 +230,8 @@ export class GroupController {
       query: searchDto.query,
       page: searchDto.page,
       limit: searchDto.limit,
+      sort: searchDto.sort,
+      order: searchDto.order,
     });
     return {
       success: true,
@@ -236,6 +266,7 @@ export class GroupController {
   }
 
   @Patch(':id')
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Обновить группу' })
   @ApiResponse({
     status: 200,
@@ -263,6 +294,7 @@ export class GroupController {
   }
 
   @Delete(':id')
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Удалить группу' })
   @ApiResponse({ status: 200, description: 'Группа удалена', schema: API_SUCCESS_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
