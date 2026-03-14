@@ -42,6 +42,8 @@ model Floor {
 
   classrooms Classroom[]
 
+  // Номер этажа уникален в рамках одного здания
+  @@unique([buildingId, number])
   @@map("floors")
 }
 
@@ -53,6 +55,8 @@ model Classroom {
   floor Floor @relation(fields: [floorId], references: [id], onDelete: Restrict)
   schedules Schedule[]
 
+  // Название аудитории уникально в рамках одного этажа
+  @@unique([floorId, name])
   @@map("classrooms")
 }
 
@@ -198,12 +202,13 @@ model BellTemplate {
   lessonNumber   Int          @map("lesson_number")
   startTime      DateTime     @map("start_time")      // время начала пары (часы и минуты)
   endTime        DateTime     @map("end_time")        // время конца пары (часы и минуты)
+  secondStartTime DateTime?   @map("second_start_time") // необязательное начало второго сегмента занятия
+  secondEndTime   DateTime?   @map("second_end_time")   // необязательный конец второго сегмента занятия
 
   institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   group       Group?      @relation(fields: [groupId], references: [id], onDelete: SetNull)
   schedules   Schedule[]
 
-  @@unique([groupId, scheduleType, specificDate, weekdayStart, weekdayEnd, lessonNumber])
   @@map("bell_templates")
 }
 
@@ -213,18 +218,23 @@ model Schedule {
   subjectId       Int          @map("subject_id")
   groupId         Int          @map("group_id")
   teacherId       Int          @map("teacher_id")
-  classroomId     Int          @map("classroom_id")
+  classroomId     Int?         @map("classroom_id")
   bellTemplateId  Int          @map("bell_template_id")
   scheduleDate    DateTime     @map("schedule_date")
+  // Слот занятия: записи с одним scheduleSlotId — одно занятие (подгруппы), null = одно занятие без подгрупп
+  scheduleSlotId  String?       @map("schedule_slot_id")
 
   institution  Institution  @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   group        Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
   teacher     Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  classroom   Classroom   @relation(fields: [classroomId], references: [id], onDelete: Restrict)
+  classroom   Classroom?   @relation(fields: [classroomId], references: [id], onDelete: SetNull)
   bellTemplate BellTemplate @relation(fields: [bellTemplateId], references: [id], onDelete: Restrict)
 
   @@index([groupId, scheduleDate])
+  @@index([classroomId, scheduleDate])
+  @@index([teacherId, scheduleDate])
+  @@index([scheduleSlotId])
   @@map("schedules")
 }
 
