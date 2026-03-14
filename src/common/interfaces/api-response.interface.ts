@@ -19,11 +19,33 @@ export interface ApiSuccessResponse<T> {
     meta?: ResponseMeta;
 }
 
+/** Коды ошибок для программной обработки на клиенте */
+export type ApiErrorCode =
+    | 'VALIDATION_ERROR'
+    | 'BAD_REQUEST'
+    | 'UNAUTHORIZED'
+    | 'FORBIDDEN'
+    | 'NOT_FOUND'
+    | 'CONFLICT'
+    | 'INTERNAL_ERROR';
+
+/** Детали конфликта (409) для фронта */
+export interface ConflictDetails {
+    type?: 'CLASSROOM_OCCUPIED' | 'TEACHER_OCCUPIED';
+    scheduleId?: number;
+    scheduleDate?: string;
+    lessonNumber?: number;
+}
+
 export interface ApiErrorResponse {
     success: false;
     data: null;
     message: string;
+    /** Машинный код ошибки для обработки на фронте */
+    code?: ApiErrorCode | string;
     errors?: ValidationError[];
+    /** Детали конфликта (при 409) */
+    conflict?: ConflictDetails;
 }
 
 export type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
@@ -136,6 +158,12 @@ export const API_ERROR_RESPONSE_SCHEMA = {
             example: null,
         },
         message: { type: 'string', description: 'Текст ошибки', example: 'Ошибка валидации данных' },
+        code: {
+            type: 'string',
+            description: 'Машинный код ошибки: VALIDATION_ERROR, BAD_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT, INTERNAL_ERROR',
+            example: 'VALIDATION_ERROR',
+            enum: ['VALIDATION_ERROR', 'BAD_REQUEST', 'UNAUTHORIZED', 'FORBIDDEN', 'NOT_FOUND', 'CONFLICT', 'INTERNAL_ERROR'],
+        },
         errors: {
             type: 'array',
             description: 'Детали валидации (при 400)',
@@ -147,11 +175,22 @@ export const API_ERROR_RESPONSE_SCHEMA = {
                 },
             },
         },
+        conflict: {
+            type: 'object',
+            description: 'При 409: тип и данные конфликта (CLASSROOM_OCCUPIED / TEACHER_OCCUPIED, scheduleId, scheduleDate, lessonNumber)',
+            properties: {
+                type: { type: 'string', enum: ['CLASSROOM_OCCUPIED', 'TEACHER_OCCUPIED'] },
+                scheduleId: { type: 'number' },
+                scheduleDate: { type: 'string' },
+                lessonNumber: { type: 'number' },
+            },
+        },
     },
     example: {
         success: false,
         data: null,
         message: 'Ошибка валидации данных',
+        code: 'VALIDATION_ERROR',
         errors: [{ field: 'email', message: 'email must be an email' }],
     },
 };

@@ -62,18 +62,6 @@ export function parseUserIncludeOption(include?: string): IFindUserOptions {
   return includeSet.size > 0 ? { include: Array.from(includeSet) } : {};
 }
 
-export function shouldIncludeStudent(options?: IFindUserOptions): boolean {
-  return options?.include?.includes('student') ?? false;
-}
-
-export function shouldIncludeTeacher(options?: IFindUserOptions): boolean {
-  return options?.include?.includes('teacher') ?? false;
-}
-
-export function shouldIncludeModerator(options?: IFindUserOptions): boolean {
-  return options?.include?.includes('moderator') ?? false;
-}
-
 const BUILDING_INCLUDE_OPTIONS: BuildingIncludeOption[] = ['floors', 'floors.classrooms'];
 
 export function parseBuildingIncludeOption(include?: string): IBuildingFindOptions {

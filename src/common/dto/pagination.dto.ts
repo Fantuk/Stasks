@@ -1,8 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsOptional, IsInt, Min, Max } from 'class-validator';
+import { IsOptional, IsInt, Min, Max, IsString, IsIn } from 'class-validator';
 
-/** Базовый DTO пагинации: page, limit (для списков) */
+/** Базовый DTO пагинации: page, limit (для списков). Опционально sort и order для сортировки. */
 export class PaginationDto {
   @ApiPropertyOptional({ default: 1, minimum: 1, description: 'Номер страницы', example: 1 })
   @IsOptional()
@@ -18,6 +18,16 @@ export class PaginationDto {
   @Min(1, { message: 'Лимит должен быть больше 0' })
   @Max(100, { message: 'Лимит не может быть больше 100' })
   limit?: number;
+
+  @ApiPropertyOptional({ description: 'Поле сортировки (зависит от эндпоинта)', example: 'name' })
+  @IsOptional()
+  @IsString()
+  sort?: string;
+
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'asc', description: 'Направление сортировки' })
+  @IsOptional()
+  @IsIn(['asc', 'desc'], { message: 'order может быть только asc или desc' })
+  order?: 'asc' | 'desc';
 }
 
 export interface PaginatedResult<T> {

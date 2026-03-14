@@ -1,6 +1,17 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from "@nestjs/common";
 import { FastifyReply, FastifyRequest } from "fastify";
-import { ApiErrorResponse, ValidationError } from "src/common/interfaces/api-response.interface";
+import { ApiErrorResponse, ConflictDetails, ValidationError } from "src/common/interfaces/api-response.interface";
+
+/** Определяет код ошибки по умолчанию для HTTP-статуса */
+function defaultCodeForStatus(status: number): string {
+    if (status === HttpStatus.BAD_REQUEST) return 'BAD_REQUEST';
+    if (status === HttpStatus.UNAUTHORIZED) return 'UNAUTHORIZED';
+    if (status === HttpStatus.FORBIDDEN) return 'FORBIDDEN';
+    if (status === HttpStatus.NOT_FOUND) return 'NOT_FOUND';
+    if (status === HttpStatus.CONFLICT) return 'CONFLICT';
+    if (status >= 500) return 'INTERNAL_ERROR';
+    return 'BAD_REQUEST';
+}
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -11,7 +22,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         const response = ctx.getResponse<FastifyReply>();
         const request = ctx.getRequest<FastifyRequest>();
 
-        const { status, message, errors } = this.extractErrorDetails(exception);
+        const { status, message, code, errors, conflict } = this.extractErrorDetails(exception);
 
         this.logError(exception, request, status);
 
@@ -19,16 +30,33 @@ export class HttpExceptionFilter implements ExceptionFilter {
             success: false,
             data: null,
             message,
+            ...(code && { code }),
             ...(errors && errors.length > 0 && { errors }),
+            ...(conflict && status === 409 && { conflict }),
         }
 
         response.status(status).send(errorResponse);
     }
 
-    private extractErrorDetails(exception: unknown): { status: number, message: string, errors?: ValidationError[] } {
+    private extractErrorDetails(exception: unknown): {
+        status: number;
+        message: string;
+        code?: string;
+        errors?: ValidationError[];
+        conflict?: ConflictDetails;
+    } {
         if (exception instanceof HttpException) {
             const status = exception.getStatus();
             const exceptionResponse = exception.getResponse();
+
+            const res = exceptionResponse as Record<string, unknown> | undefined;
+            const customCode =
+                res && typeof res.code === 'string' ? res.code : undefined;
+            const code = customCode ?? defaultCodeForStatus(status);
+            const conflict =
+                res && res.conflict && typeof res.conflict === 'object'
+                    ? (res.conflict as ConflictDetails)
+                    : undefined;
 
             if (status === HttpStatus.BAD_REQUEST &&
                 typeof exceptionResponse === 'object' &&
@@ -53,6 +81,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
                     return {
                         status,
                         message: 'Ошибка валидации данных',
+                        code: 'VALIDATION_ERROR',
                         errors: validationErrors,
                     };
                 }
@@ -70,6 +99,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
             return {
                 status,
                 message,
+                code,
+                conflict,
             };
         }
 
@@ -77,6 +108,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         return {
             status: HttpStatus.INTERNAL_SERVER_ERROR,
             message: 'Внутренняя ошибка сервера',
+            code: 'INTERNAL_ERROR',
         };
     }
 
