@@ -25,6 +25,7 @@ import { API_ERROR_RESPONSE_SCHEMA, createSuccessResponseSchema } from 'src/comm
 import { parseIncludeOption, shouldIncludeUser } from 'src/common/utils/query.utils';
 import { StudentResponseDto } from 'src/student/application/dto/student-response.dto';
 import { UserResponseDto } from 'src/user/application/dto/user-response.dto';
+import { GetStudentsQueryDto } from './dto/get-students-query.dto';
 
 @ApiTags('Students')
 @ApiBearerAuth('JWT')
@@ -36,37 +37,34 @@ export class StudentController {
   constructor(private readonly studentService: StudentService) { }
 
   @Get()
-  @ApiOperation({ summary: 'Список студентов группы', description: 'Query: groupId (обязателен)' })
+  @ApiOperation({ summary: 'Список студентов группы', description: 'Query: groupId (обязателен). При пустой группе возвращается 200 и data: []' })
   @ApiResponse({
     status: 200,
-    description: 'Список студентов',
+    description: 'Список студентов (пустой массив, если в группе нет студентов)',
     schema: createSuccessResponseSchema(getSchemaPath(StudentResponseDto), { isArray: true }),
   })
+  @ApiResponse({ status: 400, description: 'groupId не указан или неверен', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 404, description: 'Студенты не найдены', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 404, description: 'Группа не найдена', schema: API_ERROR_RESPONSE_SCHEMA })
   async findByGroup(
-    @Query('groupId', ParseIntPipe) groupId: number,
+    @Query() query: GetStudentsQueryDto,
     @GetUser() user: IAccessToken,
-    @Query('include') include?: string,
   ): Promise<ApiSuccessResponse<IStudentResponse[]>> {
-    const options = parseIncludeOption(include);
+    const options = parseIncludeOption(query.include);
     const includeUser = shouldIncludeUser(options) ?? false;
     const students = await this.studentService.findByGroupId(
-      groupId,
+      query.groupId,
       user.institutionId,
       options,
     );
-    if (students.length === 0) {
-      throw new NotFoundException('Студенты не найдены по группе ' + groupId);
-    }
     return {
       success: true,
       data: students.map((s) => s.toResponse(includeUser)),
     };
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Студент по id пользователя' })
+  @Get(':userId')
+  @ApiOperation({ summary: 'Студент по id пользователя (userId)' })
   @ApiResponse({
     status: 200,
     description: 'Данные студента',
@@ -75,17 +73,17 @@ export class StudentController {
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 404, description: 'Студент не найден', schema: API_ERROR_RESPONSE_SCHEMA })
   async findById(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('userId', ParseIntPipe) userId: number,
     @GetUser() user: IAccessToken,
     @Query('include') include?: string,
   ): Promise<ApiSuccessResponse<IStudentResponse>> {
     const options = parseIncludeOption(include);
     const student = await this.studentService.findByUserId(
-      id,
+      userId,
       user.institutionId,
       options,
     );
-    if (!student) throw new NotFoundException('Студент не найден по id ' + id);
+    if (!student) throw new NotFoundException('Студент не найден по id ' + userId);
     const includeUser = options?.include?.includes('user') ?? false;
     return {
       success: true,

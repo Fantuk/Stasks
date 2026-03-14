@@ -67,6 +67,13 @@ export class StudentService {
     institutionId?: number,
     options?: IFindOneOptions,
   ): Promise<Student[]> {
+    if (institutionId !== undefined) {
+      const group = await this.groupService.findById(groupId, institutionId);
+      if (!group) {
+        throw new NotFoundException('Группа не найдена');
+      }
+    }
+
     const includeUser = shouldIncludeUser(options);
     const students = await this.studentRepository.findByGroupId(groupId, {
       includeUser,
@@ -74,7 +81,7 @@ export class StudentService {
 
     if (institutionId !== undefined) {
       const filteredStudents: Student[] = [];
-      for (const student of await students) {
+      for (const student of students) {
         const user = await this.userService.findById(
           student.userId,
           institutionId,

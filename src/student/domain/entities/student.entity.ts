@@ -2,10 +2,19 @@ import { Prisma } from "@prisma/client";
 import { UserResponse } from "src/user/application/interfaces/interfaces";
 import { User } from "src/user/domain/entities/user.entity";
 
+/** Краткий DTO группы для вложенного ответа (например, в студенте) */
+export interface IGroupSummary {
+  id: number | null;
+  institutionId: number;
+  name: string;
+}
+
 export interface IStudentResponse {
   id: number | null;
   userId: number;
   groupId: number | null;
+  /** При загрузке с include group — название группы для отображения в UI */
+  group?: IGroupSummary;
   user?: UserResponse;
 }
 
@@ -15,6 +24,8 @@ export class Student {
     public readonly userId: number,
     public groupId: number | null,
     private _user?: User,
+    /** Опциональные данные группы (при загрузке с include group) */
+    private _group?: IGroupSummary,
   ) { }
 
   setUserData(userData: Prisma.UserGetPayload<{}>): void {
@@ -43,8 +54,12 @@ export class Student {
     id: number;
     userId: number;
     groupId: number | null;
+    group?: { id: number; name: string; institutionId: number } | null;
   }): Student {
-    return new Student(raw.id, raw.userId, raw.groupId);
+    const group: IGroupSummary | undefined = raw.group
+      ? { id: raw.group.id, institutionId: raw.group.institutionId, name: raw.group.name }
+      : undefined;
+    return new Student(raw.id, raw.userId, raw.groupId, undefined, group);
   }
 
   assignToGroup(groupId: number | null) {
@@ -76,6 +91,9 @@ export class Student {
 
     if (includeUser && this._user) {
       response.user = this._user.toResponse();
+    }
+    if (this._group) {
+      response.group = this._group;
     }
 
     return response;
