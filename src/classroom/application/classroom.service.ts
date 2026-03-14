@@ -55,9 +55,8 @@ export class ClassroomService {
     if (includeFloor) {
       const data = await this.classroomRepository.findByIdWithFloor(id);
       if (!data) return null;
-      const classInstitutionId = await this.getInstitutionIdByClassroomId(id);
       ensureInstitutionAccess(
-        classInstitutionId,
+        data.institutionId,
         institutionId,
         'Нет доступа к аудитории из другого учреждения',
       );

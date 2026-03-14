@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   NotFoundException,
   Param,
   ParseIntPipe,
@@ -39,9 +41,11 @@ import { ClassroomResponseDto } from 'src/classroom/application/dto/classroom-re
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN, Role.MODERATOR)
 export class ClassroomController {
+  /** Специфичные пути (search и т.д.) должны быть объявлены выше Get(':id'). */
   constructor(private readonly classroomService: ClassroomService) {}
 
   @Post()
+  @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Создать аудиторию' })
   @ApiResponse({
     status: 201,
@@ -66,7 +70,10 @@ export class ClassroomController {
   }
 
   @Get('search')
-  @ApiOperation({ summary: 'Поиск аудиторий с пагинацией' })
+  @ApiOperation({
+    summary: 'Поиск аудиторий с пагинацией',
+    description: 'Поиск по строке и фильтр по этажу. Список по этажу: GET /classroom?floorId=...',
+  })
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
@@ -97,7 +104,10 @@ export class ClassroomController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Список аудиторий этажа с пагинацией' })
+  @ApiOperation({
+    summary: 'Список аудиторий этажа с пагинацией',
+    description: 'Список по floorId (обязателен). Для поиска по названию используйте GET /classroom/search.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Список и meta',

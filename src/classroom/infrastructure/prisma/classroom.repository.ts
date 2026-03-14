@@ -8,6 +8,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { Classroom } from 'src/classroom/domain/entities/classroom.entity';
 import type {
   IClassroomRepository,
+  ClassroomNestedBuilding,
   ClassroomNestedFloor,
   ClassroomWithFloor,
 } from 'src/classroom/domain/classroom-repository.interface';
@@ -85,18 +86,30 @@ export class ClassroomRepository implements IClassroomRepository {
       select: {
         ...classroomSelect,
         floor: {
-          select: { id: true, buildingId: true, number: true },
+          select: {
+            id: true,
+            buildingId: true,
+            number: true,
+            building: {
+              select: { institutionId: true, id: true, name: true },
+            },
+          },
         },
       },
     });
     if (!raw) return null;
     const classroom = this.mapToDomain(raw);
+    const building = raw.floor.building as { id: number; name: string; institutionId: number } | null;
     const floor: ClassroomNestedFloor = {
       id: raw.floor.id,
       buildingId: raw.floor.buildingId,
       number: raw.floor.number,
+      ...(building && {
+        building: { id: building.id, name: building.name } as ClassroomNestedBuilding,
+      }),
     };
-    return { ...classroom.toResponse(), floor };
+    const institutionId = (raw.floor.building as { institutionId: number }).institutionId;
+    return { ...classroom.toResponse(), floor, institutionId };
   }
 
   async findByFloorId(

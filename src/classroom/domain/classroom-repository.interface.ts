@@ -8,14 +8,24 @@ export interface ISearchClassroomsParams {
   limit?: number;
 }
 
+/** Корпус (для вложенного ответа, напр. в расписании) */
+export interface ClassroomNestedBuilding {
+  id: number;
+  name: string;
+}
+
 export interface ClassroomNestedFloor {
   id: number;
   buildingId: number;
   number: number;
+  /** Корпус (при запросе с include=floor) */
+  building?: ClassroomNestedBuilding;
 }
 
 export type ClassroomWithFloor = ReturnType<Classroom['toResponse']> & {
   floor: ClassroomNestedFloor;
+  /** Приводится из floor.building, чтобы не делать отдельный запрос getInstitutionIdByClassroomId */
+  institutionId: number;
 };
 
 export interface IClassroomRepository {
