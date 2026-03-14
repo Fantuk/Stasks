@@ -7,7 +7,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserDto, UpdateUserDtoLike } from './dto/update-user.dto';
 import { hash, genSalt, compare } from 'bcrypt';
 import { User } from 'src/user/domain/entities/user.entity';
 import type { ISearchUsersParams, IUserRepository, IUserWithProfiles } from 'src/user/domain/user-repository.interface';
@@ -207,7 +207,7 @@ export class UserService {
 
   async update(
     id: number,
-    updateUserDto: UpdateUserDto,
+    updateUserDto: UpdateUserDtoLike,
     institutionId?: number,
   ) {
     const result = await this.userRepository.findById(id);
