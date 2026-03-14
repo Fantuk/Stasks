@@ -4,19 +4,25 @@ import {
   IsInt,
   IsDateString,
   IsOptional,
+  IsString,
+  IsUUID,
   Min,
   Validate,
+  ValidateIf,
   ValidatorConstraint,
   ValidatorConstraintInterface,
   ValidationArguments,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-/** Нужен либо bellTemplateId, либо lessonNumber (для авто-подбора шаблона) */
+/** Нужен либо bellTemplateId, либо lessonNumber (для авто-подбора шаблона). При добавлении подгруппы (scheduleSlotId) шаблон берётся из слота — проверка не требуется. */
 @ValidatorConstraint({ name: 'scheduleTemplateOrLesson', async: false })
 export class ScheduleTemplateOrLessonConstraint implements ValidatorConstraintInterface {
   validate(_value: unknown, args: ValidationArguments) {
-    const obj = args.object as { bellTemplateId?: number; lessonNumber?: number };
+    const obj = args.object as { bellTemplateId?: number; lessonNumber?: number; scheduleSlotId?: string };
+    if (obj.scheduleSlotId != null && String(obj.scheduleSlotId).trim() !== '') {
+      return true;
+    }
     const hasTemplate = obj.bellTemplateId != null && obj.bellTemplateId > 0;
     const hasLesson = obj.lessonNumber != null && obj.lessonNumber >= 1;
     return hasTemplate || hasLesson;
@@ -49,12 +55,14 @@ export class CreateScheduleDto {
   @Min(1)
   teacherId: number;
 
-  @ApiProperty({ example: 1, description: 'ID аудитории' })
-  @IsNotEmpty({ message: 'ID аудитории обязателен' })
+  /** ID аудитории; не указывать или null — занятие проводится удалённо (дистанционно) */
+  @ApiPropertyOptional({ example: 1, description: 'ID аудитории. Не указывать или null — занятие удалённое' })
+  @IsOptional()
+  @ValidateIf((o) => o.classroomId != null)
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  classroomId: number;
+  classroomId?: number | null;
 
   @ApiPropertyOptional({
     example: 1,
@@ -83,6 +91,16 @@ export class CreateScheduleDto {
   @IsNotEmpty({ message: 'Дата занятия обязательна' })
   @IsDateString()
   scheduleDate: string;
+
+  /** При добавлении подгруппы: ID слота существующего занятия (UUID). Не передавать при создании первого занятия слота. */
+  @ApiPropertyOptional({
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    description: 'ID слота занятия. Если указан — создаётся подгруппа к существующему занятию (те же предмет, группа, дата, звонки; другой преподаватель/аудитория).',
+  })
+  @IsOptional()
+  @IsString()
+  @IsUUID('4')
+  scheduleSlotId?: string;
 
   @Validate(ScheduleTemplateOrLessonConstraint)
   _templateOrLesson?: unknown;

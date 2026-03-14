@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   Injectable,
   Inject,
@@ -9,6 +10,7 @@ import { ensureInstitutionAccess } from 'src/common/utils/institution-access.uti
 import { Schedule } from 'src/schedule/domain/entities/schedule.entity';
 import type {
   IScheduleRepository,
+  ScheduleTimeRange,
   ScheduleWithSlot,
 } from 'src/schedule/domain/schedule-repository.interface';
 import { isBellTemplateApplicableForDate } from 'src/schedule/domain/utils/bell-template-date.utils';
@@ -23,6 +25,7 @@ import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { BulkCreateScheduleDto } from './dto/bulk-create-schedule.dto';
 import type { PaginatedResult } from 'src/common/dto/pagination.dto';
+import { SCHEDULE_EXPAND_VALUES, type ScheduleExpandOption } from './dto/schedule-query.dto';
 
 /** Объединяет календарную дату с временем из другого Date (часы/минуты) в UTC */
 function mergeDateAndTime(dateOnly: Date, timeSource: Date): Date {
@@ -50,6 +53,49 @@ function timeSlotsOverlap(
   const bStart = mergeDateAndTime(dateB, startB);
   const bEnd = mergeDateAndTime(dateB, endB);
   return aStart < bEnd && aEnd > bStart;
+}
+
+function buildTimeRangesFromTemplate(template: {
+  startTime: string | Date;
+  endTime: string | Date;
+  secondStartTime?: string | Date | null;
+  secondEndTime?: string | Date | null;
+}): ScheduleTimeRange[] {
+  const ranges: ScheduleTimeRange[] = [
+    {
+      startTime: new Date(template.startTime),
+      endTime: new Date(template.endTime),
+    },
+  ];
+
+  if (template.secondStartTime && template.secondEndTime) {
+    ranges.push({
+      startTime: new Date(template.secondStartTime),
+      endTime: new Date(template.secondEndTime),
+    });
+  }
+
+  return ranges;
+}
+
+function rangesOverlap(
+  targetRanges: ScheduleTimeRange[],
+  targetDate: Date,
+  existingRanges: ScheduleTimeRange[],
+  existingDate: Date,
+): boolean {
+  return targetRanges.some((targetRange) =>
+    existingRanges.some((existingRange) =>
+      timeSlotsOverlap(
+        targetRange.startTime,
+        targetRange.endTime,
+        targetDate,
+        existingRange.startTime,
+        existingRange.endTime,
+        existingDate,
+      ),
+    ),
+  );
 }
 
 @Injectable()
@@ -105,53 +151,38 @@ export class ScheduleService {
     subjectId: number;
     groupId: number;
     teacherId: number;
-    classroomId: number;
+    classroomId: number | null;
     bellTemplateId: number;
     institutionId: number;
   }): Promise<number> {
-    const {
-      subjectId,
-      groupId,
-      teacherId,
-      classroomId,
-      bellTemplateId,
-      institutionId,
-    } = params;
+    const { subjectId, groupId, teacherId, classroomId, bellTemplateId, institutionId } = params;
 
     const [subject, group, teacher, classroom, templateResp] = await Promise.all([
       this.subjectService.findById(subjectId, institutionId),
       this.groupService.findById(groupId, institutionId),
       this.teacherService.findById(teacherId, institutionId),
-      this.classroomService.findById(classroomId, institutionId),
+      classroomId != null
+        ? this.classroomService.findById(classroomId, institutionId)
+        : Promise.resolve(null),
       this.bellTemplateService.findById(bellTemplateId, institutionId),
     ]);
 
     if (!subject) throw new NotFoundException('Предмет не найден');
     if (!group) throw new NotFoundException('Группа не найдена');
     if (!teacher) throw new NotFoundException('Учитель не найден');
-    if (!classroom) throw new NotFoundException('Аудитория не найдена');
+    if (classroomId != null && !classroom) throw new NotFoundException('Аудитория не найдена');
     if (!templateResp) throw new NotFoundException('Шаблон звонков не найден');
 
     // Учитель ведёт предмет
-    const teachersOfSubject = await this.teacherService.findBySubjectId(
-      subjectId,
-      institutionId,
-    );
+    const teachersOfSubject = await this.teacherService.findBySubjectId(subjectId, institutionId);
     if (!teachersOfSubject.some((t) => t.id === teacherId)) {
-      throw new BadRequestException(
-        'Указанный учитель не ведёт данный предмет',
-      );
+      throw new BadRequestException('Указанный учитель не ведёт данный предмет');
     }
 
     // Предмет назначен группе
-    const groupsOfSubject = await this.groupService.findBySubjectId(
-      subjectId,
-      institutionId,
-    );
+    const groupsOfSubject = await this.groupService.findBySubjectId(subjectId, institutionId);
     if (!groupsOfSubject.some((g) => g.id === groupId)) {
-      throw new BadRequestException(
-        'Данный предмет не назначен указанной группе',
-      );
+      throw new BadRequestException('Данный предмет не назначен указанной группе');
     }
 
     return institutionId;
@@ -159,14 +190,20 @@ export class ScheduleService {
 
   /** Проверка применимости шаблона к дате и соответствие группе */
   private validateBellTemplateForSchedule(
-    template: { scheduleType: string; specificDate: Date | null; weekdayStart: number | null; weekdayEnd: number | null; groupId: number | null },
+    template: {
+      scheduleType: 'date' | 'weekday';
+      specificDate: Date | null;
+      weekdayStart: number | null;
+      weekdayEnd: number | null;
+      groupId: number | null;
+    },
     scheduleDate: Date,
     groupId: number,
   ): void {
     if (
       !isBellTemplateApplicableForDate(
         {
-          scheduleType: template.scheduleType as any,
+          scheduleType: template.scheduleType,
           specificDate: template.specificDate,
           weekdayStart: template.weekdayStart,
           weekdayEnd: template.weekdayEnd,
@@ -179,92 +216,117 @@ export class ScheduleService {
       );
     }
     if (template.groupId != null && template.groupId !== groupId) {
-      throw new BadRequestException(
-        'Шаблон звонков привязан к другой группе',
-      );
+      throw new BadRequestException('Шаблон звонков привязан к другой группе');
     }
   }
 
   /** Проверка конфликтов по аудитории и учителю (исключая scheduleId при обновлении) */
   private async checkConflicts(params: {
-    classroomId: number;
+    classroomId: number | null;
     teacherId: number;
     scheduleDate: Date;
-    startTime: Date;
-    endTime: Date;
+    timeRanges: ScheduleTimeRange[];
     excludeScheduleId?: number;
   }): Promise<void> {
-    const {
-      classroomId,
-      teacherId,
-      scheduleDate,
-      startTime,
-      endTime,
-      excludeScheduleId,
-    } = params;
+    const { classroomId, teacherId, scheduleDate, timeRanges, excludeScheduleId } = params;
 
     const [classroomSlots, teacherSlots] = await Promise.all([
-      this.scheduleRepository.findByClassroomAndDate(classroomId, scheduleDate),
+      classroomId != null
+        ? this.scheduleRepository.findByClassroomAndDate(classroomId, scheduleDate)
+        : Promise.resolve([]),
       this.scheduleRepository.findByTeacherAndDate(teacherId, scheduleDate),
     ]);
 
-    const hasOverlap = (list: ScheduleWithSlot[]) => {
-      return list.some((item) => {
-        if (excludeScheduleId != null && item.schedule.id === excludeScheduleId)
-          return false;
-        return timeSlotsOverlap(
-          startTime,
-          endTime,
-          scheduleDate,
-          item.startTime,
-          item.endTime,
-          item.schedule.scheduleDate,
-        );
+    const findOverlapping = (list: ScheduleWithSlot[]): ScheduleWithSlot | undefined => {
+      return list.find((item) => {
+        if (excludeScheduleId != null && item.schedule.id === excludeScheduleId) return false;
+        return rangesOverlap(timeRanges, scheduleDate, item.timeRanges, item.schedule.scheduleDate);
       });
     };
 
-    if (hasOverlap(classroomSlots)) {
-      throw new ConflictException(
-        'В выбранное время аудитория уже занята другим занятием',
-      );
+    const classroomConflict = findOverlapping(classroomSlots);
+    if (classroomConflict) {
+      throw new ConflictException({
+        message: 'В выбранное время аудитория уже занята другим занятием',
+        code: 'CONFLICT',
+        conflict: {
+          type: 'CLASSROOM_OCCUPIED',
+          scheduleId: classroomConflict.schedule.id ?? undefined,
+          scheduleDate: classroomConflict.schedule.scheduleDate?.toISOString?.(),
+        },
+      });
     }
-    if (hasOverlap(teacherSlots)) {
-      throw new ConflictException(
-        'В выбранное время учитель уже занят другим занятием',
-      );
+    const teacherConflict = findOverlapping(teacherSlots);
+    if (teacherConflict) {
+      throw new ConflictException({
+        message: 'В выбранное время учитель уже занят другим занятием',
+        code: 'CONFLICT',
+        conflict: {
+          type: 'TEACHER_OCCUPIED',
+          scheduleId: teacherConflict.schedule.id ?? undefined,
+          scheduleDate: teacherConflict.schedule.scheduleDate?.toISOString?.(),
+        },
+      });
     }
   }
 
-  async create(dto: CreateScheduleDto, institutionId: number) {
-    const scheduleDate = new Date(dto.scheduleDate);
-    let bellTemplateId = dto.bellTemplateId;
-    if (bellTemplateId == null) {
-      if (dto.lessonNumber == null) {
-        throw new BadRequestException(
-          'Укажите либо bellTemplateId, либо lessonNumber для авто-подбора шаблона',
-        );
-      }
+  /**
+   * Валидирует FK, разрешает шаблон звонков (если нужен lessonNumber), проверяет
+   * применимость шаблона к дате и конфликты. Возвращает контекст для create/update.
+   */
+  private async validateAndResolveScheduleContext(params: {
+    subjectId: number;
+    groupId: number;
+    teacherId: number;
+    classroomId: number | null;
+    bellTemplateId?: number;
+    lessonNumber?: number;
+    scheduleDate: Date;
+    institutionId: number;
+    excludeScheduleId?: number;
+  }): Promise<{
+    subjectId: number;
+    groupId: number;
+    teacherId: number;
+    classroomId: number | null;
+    bellTemplateId: number;
+    scheduleDate: Date;
+    timeRanges: ScheduleTimeRange[];
+  }> {
+    const {
+      subjectId,
+      groupId,
+      teacherId,
+      classroomId,
+      scheduleDate,
+      institutionId,
+      excludeScheduleId,
+    } = params;
+    let bellTemplateId = params.bellTemplateId;
+    if (bellTemplateId == null && params.lessonNumber != null) {
       bellTemplateId = await this.resolveBellTemplateId(
         institutionId,
-        dto.groupId,
+        groupId,
         scheduleDate,
-        dto.lessonNumber,
+        params.lessonNumber,
+      );
+    }
+    if (bellTemplateId == null) {
+      throw new BadRequestException(
+        'Укажите либо bellTemplateId, либо lessonNumber для авто-подбора шаблона',
       );
     }
 
     await this.validateScheduleFk({
-      subjectId: dto.subjectId,
-      groupId: dto.groupId,
-      teacherId: dto.teacherId,
-      classroomId: dto.classroomId,
+      subjectId,
+      groupId,
+      teacherId,
+      classroomId,
       bellTemplateId,
       institutionId,
     });
 
-    const template = await this.bellTemplateService.findById(
-      bellTemplateId,
-      institutionId,
-    );
+    const template = await this.bellTemplateService.findById(bellTemplateId, institutionId);
     if (!template) throw new NotFoundException('Шаблон звонков не найден');
     const templateForDate = {
       scheduleType: template.scheduleType,
@@ -273,36 +335,210 @@ export class ScheduleService {
       weekdayEnd: template.weekdayEnd ?? null,
       groupId: template.groupId ?? null,
     };
-    this.validateBellTemplateForSchedule(
-      templateForDate,
-      scheduleDate,
-      dto.groupId,
-    );
+    this.validateBellTemplateForSchedule(templateForDate, scheduleDate, groupId);
 
-    const startTime = new Date(template.startTime);
-    const endTime = new Date(template.endTime);
+    const timeRanges = buildTimeRangesFromTemplate(template);
     await this.checkConflicts({
-      classroomId: dto.classroomId,
-      teacherId: dto.teacherId,
+      classroomId,
+      teacherId,
       scheduleDate,
-      startTime,
-      endTime,
+      timeRanges,
+      excludeScheduleId,
+    });
+
+    return {
+      subjectId,
+      groupId,
+      teacherId,
+      classroomId,
+      bellTemplateId,
+      scheduleDate,
+      timeRanges,
+    };
+  }
+
+  async create(dto: CreateScheduleDto, institutionId: number) {
+    const scheduleDate = new Date(dto.scheduleDate);
+    let scheduleSlotId: string;
+    let effectiveDate = scheduleDate;
+    let effectiveBellTemplateId: number | undefined = dto.bellTemplateId ?? undefined;
+
+    if (dto.scheduleSlotId) {
+      // Добавление подгруппы к существующему занятию: проверяем слот и совпадение параметров
+      const existingInSlot = await this.scheduleRepository.findByScheduleSlotId(dto.scheduleSlotId);
+      if (existingInSlot.length === 0) {
+        throw new BadRequestException(
+          'Слот занятия не найден. Укажите существующий scheduleSlotId или не передавайте его для нового занятия.',
+        );
+      }
+      const first = existingInSlot[0];
+      ensureInstitutionAccess(
+        first.institutionId,
+        institutionId,
+        'Нет доступа к слоту из другого учреждения',
+      );
+      // Совпадение предмета и группы; дату и bellTemplateId берём из слота
+      if (dto.subjectId !== first.subjectId || dto.groupId !== first.groupId) {
+        throw new BadRequestException(
+          'При добавлении подгруппы subjectId и groupId должны совпадать с существующим занятием в слоте.',
+        );
+      }
+      const firstDate = first.scheduleDate.getTime();
+      const dtoDate = scheduleDate.getTime();
+      if (Math.abs(firstDate - dtoDate) >= 24 * 60 * 60 * 1000) {
+        throw new BadRequestException(
+          'Дата занятия при добавлении подгруппы должна совпадать с датой существующего занятия в слоте.',
+        );
+      }
+      const duplicate = existingInSlot.some(
+        (s) => s.teacherId === dto.teacherId && s.classroomId === (dto.classroomId ?? null),
+      );
+      if (duplicate) {
+        throw new BadRequestException(
+          'В этом занятии уже есть подгруппа с таким преподавателем и аудиторией.',
+        );
+      }
+      scheduleSlotId = dto.scheduleSlotId;
+      effectiveDate = first.scheduleDate;
+      effectiveBellTemplateId = first.bellTemplateId;
+    } else {
+      scheduleSlotId = randomUUID();
+    }
+
+    const ctx = await this.validateAndResolveScheduleContext({
+      subjectId: dto.subjectId,
+      groupId: dto.groupId,
+      teacherId: dto.teacherId,
+      classroomId: dto.classroomId ?? null,
+      bellTemplateId: effectiveBellTemplateId,
+      lessonNumber: effectiveBellTemplateId == null ? dto.lessonNumber ?? undefined : undefined,
+      scheduleDate: effectiveDate,
+      institutionId,
     });
 
     const schedule = Schedule.create({
       institutionId,
-      subjectId: dto.subjectId,
-      groupId: dto.groupId,
-      teacherId: dto.teacherId,
-      classroomId: dto.classroomId,
-      bellTemplateId,
-      scheduleDate,
+      subjectId: ctx.subjectId,
+      groupId: ctx.groupId,
+      teacherId: ctx.teacherId,
+      classroomId: ctx.classroomId,
+      bellTemplateId: ctx.bellTemplateId,
+      scheduleDate: ctx.scheduleDate,
+      scheduleSlotId,
     });
     const created = await this.scheduleRepository.create(schedule);
     return created.toResponse();
   }
 
-  async findById(id: number, institutionId: number) {
+  /** Парсит строку expand в массив допустимых значений */
+  private parseExpand(expand?: string): ScheduleExpandOption[] {
+    if (!expand?.trim()) return [];
+    const parts = expand.split(',').map((s) => s.trim().toLowerCase());
+    return parts.filter((p): p is ScheduleExpandOption =>
+      SCHEDULE_EXPAND_VALUES.includes(p as ScheduleExpandOption),
+    );
+  }
+
+  /** Подмешивает вложенные сущности (subject, group, teacher, classroom) в ответы расписания */
+  private async attachExpandedData(
+    scheduleResponses: ReturnType<Schedule['toResponse']>[],
+    expandOptions: ScheduleExpandOption[],
+    institutionId: number,
+  ): Promise<(ReturnType<Schedule['toResponse']> & Record<string, unknown>)[]> {
+    if (expandOptions.length === 0)
+      return scheduleResponses as (ReturnType<Schedule['toResponse']> & Record<string, unknown>)[];
+
+    const needSubject = expandOptions.includes('subject');
+    const needGroup = expandOptions.includes('group');
+    const needTeacher = expandOptions.includes('teacher');
+    const needClassroom = expandOptions.includes('classroom');
+
+    const subjectIds = needSubject ? [...new Set(scheduleResponses.map((s) => s.subjectId))] : [];
+    const groupIds = needGroup ? [...new Set(scheduleResponses.map((s) => s.groupId))] : [];
+    const teacherIds = needTeacher ? [...new Set(scheduleResponses.map((s) => s.teacherId))] : [];
+    const classroomIds = needClassroom
+      ? [
+          ...new Set(
+            scheduleResponses.map((s) => s.classroomId).filter((id): id is number => id != null),
+          ),
+        ]
+      : [];
+
+    const [subjectsMap, groupsMap, teachersMap, classroomsMap] = await Promise.all([
+      needSubject
+        ? Promise.all(subjectIds.map((id) => this.subjectService.findById(id, institutionId))).then(
+            (list) =>
+              new Map(list.filter(Boolean).map((s) => [s!.id!, { id: s!.id, name: s!.name }])),
+          )
+        : Promise.resolve(new Map()),
+      needGroup
+        ? Promise.all(groupIds.map((id) => this.groupService.findById(id, institutionId))).then(
+            (list) =>
+              new Map(
+                list
+                  .filter(Boolean)
+                  .map((g) => [g!.id!, { id: g!.id, name: (g as { name: string }).name }]),
+              ),
+          )
+        : Promise.resolve(new Map()),
+      needTeacher
+        ? Promise.all(
+            teacherIds.map((id) => this.teacherService.findById(id, institutionId, true)),
+          ).then(
+            (list) =>
+              new Map(
+                list.filter(Boolean).map((t) => {
+                  const r = t!.toResponse(true);
+                  const name = r.user
+                    ? [r.user.name, r.user.surname].filter(Boolean).join(' ')
+                    : undefined;
+                  return [t!.id!, { id: t!.id, userId: t!.userId, name }];
+                }),
+              ),
+          )
+        : Promise.resolve(new Map()),
+      needClassroom
+        ? Promise.all(
+            classroomIds.map((id) =>
+              this.classroomService.findById(id, institutionId, { include: ['floor'] }),
+            ),
+          ).then(
+            (list) =>
+              new Map(
+                list
+                  .filter(Boolean)
+                  .map((c) => {
+                    const data = c as {
+                      id: number;
+                      name: string;
+                      floor?: { building?: { id: number; name: string } };
+                    };
+                    const building = data.floor?.building;
+                    return [
+                      data.id,
+                      {
+                        id: data.id,
+                        name: data.name,
+                        ...(building && { building: { id: building.id, name: building.name } }),
+                      },
+                    ];
+                  }),
+              ),
+          )
+        : Promise.resolve(new Map()),
+    ]);
+
+    return scheduleResponses.map((row) => {
+      const out = { ...row } as ReturnType<Schedule['toResponse']> & Record<string, unknown>;
+      if (needSubject && row.subjectId) out.subject = subjectsMap.get(row.subjectId);
+      if (needGroup && row.groupId) out.group = groupsMap.get(row.groupId);
+      if (needTeacher && row.teacherId) out.teacher = teachersMap.get(row.teacherId);
+      if (needClassroom && row.classroomId) out.classroom = classroomsMap.get(row.classroomId);
+      return out;
+    });
+  }
+
+  async findById(id: number, institutionId: number, expand?: string) {
     const schedule = await this.scheduleRepository.findById(id);
     if (!schedule) return null;
     ensureInstitutionAccess(
@@ -310,7 +546,11 @@ export class ScheduleService {
       institutionId,
       'Нет доступа к занятию из другого учреждения',
     );
-    return schedule.toResponse();
+    const base = schedule.toResponse();
+    const options = this.parseExpand(expand);
+    if (options.length === 0) return base;
+    const [expanded] = await this.attachExpandedData([base], options, institutionId);
+    return expanded;
   }
 
   async findMany(
@@ -323,8 +563,11 @@ export class ScheduleService {
       dateTo?: string;
       page?: number;
       limit?: number;
+      expand?: string;
+      sort?: string;
+      order?: 'asc' | 'desc';
     },
-  ): Promise<PaginatedResult<ReturnType<Schedule['toResponse']>>> {
+  ): Promise<PaginatedResult<ReturnType<Schedule['toResponse']> & Record<string, unknown>>> {
     const params = {
       institutionId,
       groupId: query.groupId,
@@ -334,21 +577,20 @@ export class ScheduleService {
       dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
       page: query.page,
       limit: query.limit,
+      sort: query.sort,
+      order: query.order,
     };
     const { schedules, total } = await this.scheduleRepository.findMany(params);
-    return paginate(
-      schedules.map((s) => s.toResponse()),
-      total,
-      query.page,
-      query.limit,
-    );
+    const baseRows = schedules.map((s) => s.toResponse());
+    const expandOptions = this.parseExpand(query.expand);
+    const data =
+      expandOptions.length > 0
+        ? await this.attachExpandedData(baseRows, expandOptions, institutionId)
+        : baseRows;
+    return paginate(data, total, query.page, query.limit);
   }
 
-  async update(
-    id: number,
-    dto: UpdateScheduleDto,
-    institutionId: number,
-  ) {
+  async update(id: number, dto: UpdateScheduleDto, institutionId: number) {
     const existing = await this.scheduleRepository.findById(id);
     if (!existing) throw new NotFoundException('Занятие не найдено');
     ensureInstitutionAccess(
@@ -361,65 +603,28 @@ export class ScheduleService {
     const groupId = dto.groupId ?? existing.groupId;
     const teacherId = dto.teacherId ?? existing.teacherId;
     const classroomId = dto.classroomId ?? existing.classroomId;
-    const scheduleDate = dto.scheduleDate
-      ? new Date(dto.scheduleDate)
-      : existing.scheduleDate;
+    const scheduleDate = dto.scheduleDate ? new Date(dto.scheduleDate) : existing.scheduleDate;
+    const bellTemplateId = dto.bellTemplateId ?? existing.bellTemplateId ?? undefined;
 
-    let bellTemplateId = dto.bellTemplateId;
-    if (bellTemplateId == null && dto.lessonNumber != null) {
-      bellTemplateId = await this.resolveBellTemplateId(
-        institutionId,
-        groupId,
-        scheduleDate,
-        dto.lessonNumber,
-      );
-    }
-    if (bellTemplateId == null) bellTemplateId = existing.bellTemplateId;
-
-    await this.validateScheduleFk({
+    const ctx = await this.validateAndResolveScheduleContext({
       subjectId,
       groupId,
       teacherId,
       classroomId,
-      bellTemplateId,
-      institutionId,
-    });
-
-    const template = await this.bellTemplateService.findById(
-      bellTemplateId,
-      institutionId,
-    );
-    if (!template) throw new NotFoundException('Шаблон звонков не найден');
-    this.validateBellTemplateForSchedule(
-      {
-        scheduleType: template.scheduleType,
-        specificDate: template.specificDate ? new Date(template.specificDate) : null,
-        weekdayStart: template.weekdayStart ?? null,
-        weekdayEnd: template.weekdayEnd ?? null,
-        groupId: template.groupId ?? null,
-      },
+      bellTemplateId: bellTemplateId ?? undefined,
+      lessonNumber: dto.lessonNumber ?? undefined,
       scheduleDate,
-      groupId,
-    );
-
-    const startTime = new Date(template.startTime);
-    const endTime = new Date(template.endTime);
-    await this.checkConflicts({
-      classroomId,
-      teacherId,
-      scheduleDate,
-      startTime,
-      endTime,
+      institutionId,
       excludeScheduleId: id,
     });
 
     const updated = await this.scheduleRepository.update(id, {
-      subjectId,
-      groupId,
-      teacherId,
-      classroomId,
-      bellTemplateId,
-      scheduleDate,
+      subjectId: ctx.subjectId,
+      groupId: ctx.groupId,
+      teacherId: ctx.teacherId,
+      classroomId: ctx.classroomId,
+      bellTemplateId: ctx.bellTemplateId,
+      scheduleDate: ctx.scheduleDate,
     });
     return updated.toResponse();
   }
@@ -439,42 +644,23 @@ export class ScheduleService {
   async bulkCreate(dto: BulkCreateScheduleDto, institutionId: number) {
     const dates = this.resolveBulkDates(dto);
     if (dates.length === 0) {
-      throw new BadRequestException(
-        'Нет дат для создания (укажите dates или dateFrom+dateTo)',
-      );
+      throw new BadRequestException('Нет дат для создания (укажите dates или dateFrom+dateTo)');
     }
 
-    let bellTemplateId = dto.bellTemplateId;
-    if (bellTemplateId == null) {
-      if (dto.lessonNumber == null) {
-        throw new BadRequestException(
-          'Укажите либо bellTemplateId, либо lessonNumber для авто-подбора шаблона',
-        );
-      }
-      bellTemplateId = await this.resolveBellTemplateId(
-        institutionId,
-        dto.groupId,
-        dates[0],
-        dto.lessonNumber,
-      );
-    }
-
-    await this.validateScheduleFk({
+    // Валидация и разрешение шаблона по первой дате (включая проверку конфликтов для неё)
+    const ctx = await this.validateAndResolveScheduleContext({
       subjectId: dto.subjectId,
       groupId: dto.groupId,
       teacherId: dto.teacherId,
-      classroomId: dto.classroomId,
-      bellTemplateId,
+      classroomId: dto.classroomId ?? null,
+      bellTemplateId: dto.bellTemplateId ?? undefined,
+      lessonNumber: dto.lessonNumber ?? undefined,
+      scheduleDate: dates[0],
       institutionId,
     });
 
-    const template = await this.bellTemplateService.findById(
-      bellTemplateId,
-      institutionId,
-    );
+    const template = await this.bellTemplateService.findById(ctx.bellTemplateId, institutionId);
     if (!template) throw new NotFoundException('Шаблон звонков не найден');
-    const startTime = new Date(template.startTime);
-    const endTime = new Date(template.endTime);
     const templateForDate = {
       scheduleType: template.scheduleType,
       specificDate: template.specificDate ? new Date(template.specificDate) : null,
@@ -485,27 +671,23 @@ export class ScheduleService {
 
     const toCreate: Omit<Schedule, 'id' | 'toPersistence' | 'toResponse'>[] = [];
     for (const scheduleDate of dates) {
-      this.validateBellTemplateForSchedule(
-        templateForDate,
-        scheduleDate,
-        dto.groupId,
-      );
+      this.validateBellTemplateForSchedule(templateForDate, scheduleDate, dto.groupId);
       await this.checkConflicts({
-        classroomId: dto.classroomId,
-        teacherId: dto.teacherId,
+        classroomId: ctx.classroomId,
+        teacherId: ctx.teacherId,
         scheduleDate,
-        startTime,
-        endTime,
+        timeRanges: ctx.timeRanges,
       });
       toCreate.push(
         Schedule.create({
           institutionId,
-          subjectId: dto.subjectId,
-          groupId: dto.groupId,
-          teacherId: dto.teacherId,
-          classroomId: dto.classroomId,
-          bellTemplateId,
+          subjectId: ctx.subjectId,
+          groupId: ctx.groupId,
+          teacherId: ctx.teacherId,
+          classroomId: ctx.classroomId,
+          bellTemplateId: ctx.bellTemplateId,
           scheduleDate,
+          scheduleSlotId: randomUUID(),
         }),
       );
     }

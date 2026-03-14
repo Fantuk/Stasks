@@ -5,6 +5,7 @@ import { Schedule } from 'src/schedule/domain/entities/schedule.entity';
 import type {
   IScheduleRepository,
   IScheduleFindParams,
+  ScheduleTimeRange,
   ScheduleWithSlot,
 } from 'src/schedule/domain/schedule-repository.interface';
 
@@ -31,11 +32,37 @@ const scheduleSelect = {
   classroomId: true,
   bellTemplateId: true,
   scheduleDate: true,
+  scheduleSlotId: true,
 } as const;
 
 @Injectable()
 export class ScheduleRepository implements IScheduleRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  private mapTimeRanges(raw: {
+    bellTemplate: {
+      startTime: Date;
+      endTime: Date;
+      secondStartTime: Date | null;
+      secondEndTime: Date | null;
+    };
+  }): ScheduleTimeRange[] {
+    const ranges: ScheduleTimeRange[] = [
+      {
+        startTime: raw.bellTemplate.startTime,
+        endTime: raw.bellTemplate.endTime,
+      },
+    ];
+
+    if (raw.bellTemplate.secondStartTime && raw.bellTemplate.secondEndTime) {
+      ranges.push({
+        startTime: raw.bellTemplate.secondStartTime,
+        endTime: raw.bellTemplate.secondEndTime,
+      });
+    }
+
+    return ranges;
+  }
 
   private mapToDomain(raw: {
     id: number;
@@ -43,9 +70,10 @@ export class ScheduleRepository implements IScheduleRepository {
     subjectId: number;
     groupId: number;
     teacherId: number;
-    classroomId: number;
+    classroomId: number | null;
     bellTemplateId: number;
     scheduleDate: Date;
+    scheduleSlotId: string | null;
   }): Schedule {
     return Schedule.fromPersistence({
       id: raw.id,
@@ -56,21 +84,21 @@ export class ScheduleRepository implements IScheduleRepository {
       classroomId: raw.classroomId,
       bellTemplateId: raw.bellTemplateId,
       scheduleDate: raw.scheduleDate,
+      scheduleSlotId: raw.scheduleSlotId,
     });
   }
 
-  async create(
-    data: Omit<Schedule, 'id' | 'toPersistence' | 'toResponse'>,
-  ): Promise<Schedule> {
+  async create(data: Omit<Schedule, 'id' | 'toPersistence' | 'toResponse'>): Promise<Schedule> {
     const saved = await this.prisma.schedule.create({
       data: {
         institutionId: data.institutionId,
         subjectId: data.subjectId,
         groupId: data.groupId,
         teacherId: data.teacherId,
-        classroomId: data.classroomId,
+        classroomId: data.classroomId ?? undefined,
         bellTemplateId: data.bellTemplateId,
         scheduleDate: data.scheduleDate,
+        scheduleSlotId: data.scheduleSlotId ?? undefined,
       },
       select: scheduleSelect,
     });
@@ -89,9 +117,10 @@ export class ScheduleRepository implements IScheduleRepository {
             subjectId: item.subjectId,
             groupId: item.groupId,
             teacherId: item.teacherId,
-            classroomId: item.classroomId,
+            classroomId: item.classroomId ?? undefined,
             bellTemplateId: item.bellTemplateId,
             scheduleDate: item.scheduleDate,
+            scheduleSlotId: item.scheduleSlotId ?? undefined,
           },
           select: scheduleSelect,
         }),
@@ -108,9 +137,7 @@ export class ScheduleRepository implements IScheduleRepository {
     return raw ? this.mapToDomain(raw) : null;
   }
 
-  async findMany(
-    params: IScheduleFindParams,
-  ): Promise<{ schedules: Schedule[]; total: number }> {
+  async findMany(params: IScheduleFindParams): Promise<{ schedules: Schedule[]; total: number }> {
     const where: Prisma.ScheduleWhereInput = {
       institutionId: params.institutionId,
     };
@@ -130,25 +157,34 @@ export class ScheduleRepository implements IScheduleRepository {
 
     const total = await this.prisma.schedule.count({ where });
     const skip =
-      params.page != null && params.limit != null
-        ? (params.page - 1) * params.limit
-        : undefined;
+      params.page != null && params.limit != null ? (params.page - 1) * params.limit : undefined;
     const take = params.limit;
+    const order = params.order ?? 'asc';
+    const sortField = params.sort === 'id' ? 'id' : 'scheduleDate';
+    const orderBy =
+      sortField === 'scheduleDate'
+        ? ([
+            { scheduleDate: order },
+            { bellTemplate: { startTime: order } },
+          ] as Prisma.ScheduleOrderByWithRelationInput[])
+        : { id: order };
 
     const raw = await this.prisma.schedule.findMany({
       where,
       select: {
         ...scheduleSelect,
         bellTemplate: {
-          select: { startTime: true, endTime: true },
+          select: {
+            startTime: true,
+            endTime: true,
+            secondStartTime: true,
+            secondEndTime: true,
+          },
         },
       },
       skip,
       take,
-      orderBy: [
-        { scheduleDate: 'asc' },
-        { bellTemplate: { startTime: 'asc' } },
-      ],
+      orderBy,
     });
 
     const schedules = raw.map((r) =>
@@ -161,15 +197,13 @@ export class ScheduleRepository implements IScheduleRepository {
         classroomId: r.classroomId,
         bellTemplateId: r.bellTemplateId,
         scheduleDate: r.scheduleDate,
+        scheduleSlotId: r.scheduleSlotId,
       }),
     );
     return { schedules, total };
   }
 
-  async update(
-    id: number,
-    data: Partial<Omit<Schedule, 'id'>>,
-  ): Promise<Schedule> {
+  async update(id: number, data: Partial<Omit<Schedule, 'id'>>): Promise<Schedule> {
     const updateData: Prisma.ScheduleUpdateInput = {};
     if (data.subjectId !== undefined) {
       updateData.subject = { connect: { id: data.subjectId } };
@@ -180,13 +214,19 @@ export class ScheduleRepository implements IScheduleRepository {
     if (data.teacherId !== undefined) {
       updateData.teacher = { connect: { id: data.teacherId } };
     }
-    if (data.classroomId !== undefined) {
+    if (data.classroomId === null) {
+      (updateData as { classroomId?: number | null }).classroomId = null;
+    } else if (data.classroomId !== undefined) {
       updateData.classroom = { connect: { id: data.classroomId } };
     }
     if (data.bellTemplateId !== undefined) {
       updateData.bellTemplate = { connect: { id: data.bellTemplateId } };
     }
     if (data.scheduleDate !== undefined) updateData.scheduleDate = data.scheduleDate;
+    // scheduleSlotId не меняем при update (логическое занятие не разбиваем)
+    if (data.scheduleSlotId !== undefined) {
+      (updateData as { scheduleSlotId?: string | null }).scheduleSlotId = data.scheduleSlotId;
+    }
 
     const updated = await this.prisma.schedule.update({
       where: { id },
@@ -200,10 +240,7 @@ export class ScheduleRepository implements IScheduleRepository {
     await this.prisma.schedule.delete({ where: { id } });
   }
 
-  async findByClassroomAndDate(
-    classroomId: number,
-    date: Date,
-  ): Promise<ScheduleWithSlot[]> {
+  async findByClassroomAndDate(classroomId: number, date: Date): Promise<ScheduleWithSlot[]> {
     const start = startOfDayUTC(date);
     const end = endOfDayUTC(date);
     const raw = await this.prisma.schedule.findMany({
@@ -214,7 +251,12 @@ export class ScheduleRepository implements IScheduleRepository {
       select: {
         ...scheduleSelect,
         bellTemplate: {
-          select: { startTime: true, endTime: true },
+          select: {
+            startTime: true,
+            endTime: true,
+            secondStartTime: true,
+            secondEndTime: true,
+          },
         },
       },
     });
@@ -228,16 +270,13 @@ export class ScheduleRepository implements IScheduleRepository {
         classroomId: r.classroomId,
         bellTemplateId: r.bellTemplateId,
         scheduleDate: r.scheduleDate,
+        scheduleSlotId: r.scheduleSlotId,
       }),
-      startTime: r.bellTemplate.startTime,
-      endTime: r.bellTemplate.endTime,
+      timeRanges: this.mapTimeRanges(r),
     }));
   }
 
-  async findByTeacherAndDate(
-    teacherId: number,
-    date: Date,
-  ): Promise<ScheduleWithSlot[]> {
+  async findByTeacherAndDate(teacherId: number, date: Date): Promise<ScheduleWithSlot[]> {
     const start = startOfDayUTC(date);
     const end = endOfDayUTC(date);
     const raw = await this.prisma.schedule.findMany({
@@ -248,7 +287,12 @@ export class ScheduleRepository implements IScheduleRepository {
       select: {
         ...scheduleSelect,
         bellTemplate: {
-          select: { startTime: true, endTime: true },
+          select: {
+            startTime: true,
+            endTime: true,
+            secondStartTime: true,
+            secondEndTime: true,
+          },
         },
       },
     });
@@ -262,9 +306,30 @@ export class ScheduleRepository implements IScheduleRepository {
         classroomId: r.classroomId,
         bellTemplateId: r.bellTemplateId,
         scheduleDate: r.scheduleDate,
+        scheduleSlotId: r.scheduleSlotId,
       }),
-      startTime: r.bellTemplate.startTime,
-      endTime: r.bellTemplate.endTime,
+      timeRanges: this.mapTimeRanges(r),
     }));
+  }
+
+  async findByScheduleSlotId(scheduleSlotId: string): Promise<Schedule[]> {
+    const raw = await this.prisma.schedule.findMany({
+      where: { scheduleSlotId },
+      select: scheduleSelect,
+      orderBy: { id: 'asc' },
+    });
+    return raw.map((r) =>
+      this.mapToDomain({
+        id: r.id,
+        institutionId: r.institutionId,
+        subjectId: r.subjectId,
+        groupId: r.groupId,
+        teacherId: r.teacherId,
+        classroomId: r.classroomId,
+        bellTemplateId: r.bellTemplateId,
+        scheduleDate: r.scheduleDate,
+        scheduleSlotId: r.scheduleSlotId,
+      }),
+    );
   }
 }

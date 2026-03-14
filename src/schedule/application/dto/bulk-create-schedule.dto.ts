@@ -52,12 +52,14 @@ export class BulkCreateScheduleDto {
   @Min(1)
   teacherId: number;
 
-  @ApiProperty({ example: 1, description: 'ID аудитории' })
-  @IsNotEmpty({ message: 'ID аудитории обязателен' })
+  /** ID аудитории; не указывать или null — занятие проводится удалённо (дистанционно) */
+  @ApiPropertyOptional({ example: 1, description: 'ID аудитории. Не указывать или null — занятие удалённое' })
+  @IsOptional()
+  @ValidateIf((o) => o.classroomId != null)
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  classroomId: number;
+  classroomId?: number | null;
 
   @ApiPropertyOptional({
     example: 1,

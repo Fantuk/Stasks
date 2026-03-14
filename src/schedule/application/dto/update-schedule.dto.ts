@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsInt, IsDateString, Min } from 'class-validator';
+import { IsOptional, IsInt, IsDateString, Min, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /** DTO обновления занятия в расписании (все поля опциональны) */
@@ -25,12 +25,14 @@ export class UpdateScheduleDto {
   @Min(1)
   teacherId?: number;
 
-  @ApiPropertyOptional({ example: 1, description: 'ID аудитории' })
+  /** ID аудитории; null — занятие проводится удалённо (дистанционно) */
+  @ApiPropertyOptional({ example: 1, description: 'ID аудитории. null — занятие удалённое' })
   @IsOptional()
+  @ValidateIf((o) => o.classroomId != null)
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  classroomId?: number;
+  classroomId?: number | null;
 
   @ApiPropertyOptional({ example: 1, description: 'ID шаблона звонков' })
   @IsOptional()

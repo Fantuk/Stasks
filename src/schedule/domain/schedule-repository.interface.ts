@@ -10,13 +10,19 @@ export interface IScheduleFindParams {
   dateTo?: Date;
   page?: number;
   limit?: number;
+  sort?: string;
+  order?: 'asc' | 'desc';
 }
 
-/** Занятие вместе с временем слота (из BellTemplate) для проверки конфликтов */
-export interface ScheduleWithSlot {
-  schedule: Schedule;
+export interface ScheduleTimeRange {
   startTime: Date;
   endTime: Date;
+}
+
+/** Занятие вместе с одним или двумя временными сегментами шаблона */
+export interface ScheduleWithSlot {
+  schedule: Schedule;
+  timeRanges: ScheduleTimeRange[];
 }
 
 /** Интерфейс репозитория расписания */
@@ -25,9 +31,7 @@ export interface IScheduleRepository {
   create(data: Omit<Schedule, 'id' | 'toPersistence' | 'toResponse'>): Promise<Schedule>;
 
   /** Создать несколько занятий в одной транзакции (все или ничего) */
-  createMany(
-    data: Omit<Schedule, 'id' | 'toPersistence' | 'toResponse'>[],
-  ): Promise<Schedule[]>;
+  createMany(data: Omit<Schedule, 'id' | 'toPersistence' | 'toResponse'>[]): Promise<Schedule[]>;
 
   /** Найти занятие по id */
   findById(id: number): Promise<Schedule | null>;
@@ -46,4 +50,7 @@ export interface IScheduleRepository {
 
   /** Занятия учителя на дату с временем слота (для проверки конфликтов) */
   findByTeacherAndDate(teacherId: number, date: Date): Promise<ScheduleWithSlot[]>;
+
+  /** Все записи одного слота (одно занятие — подгруппы) по scheduleSlotId */
+  findByScheduleSlotId(scheduleSlotId: string): Promise<Schedule[]>;
 }

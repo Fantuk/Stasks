@@ -6,7 +6,14 @@ import {
   Min,
   Max,
   IsDateString,
+  IsString,
+  Matches,
+  IsIn,
 } from 'class-validator';
+
+/** Допустимые значения expand для расписания (через запятую) */
+export const SCHEDULE_EXPAND_VALUES = ['subject', 'group', 'teacher', 'classroom'] as const;
+export type ScheduleExpandOption = (typeof SCHEDULE_EXPAND_VALUES)[number];
 
 /** DTO фильтров и пагинации для списка расписания */
 export class ScheduleQueryDto {
@@ -61,4 +68,27 @@ export class ScheduleQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+
+  /** Вложенные сущности в ответе: subject, group, teacher, classroom (через запятую) */
+  @ApiPropertyOptional({
+    description: 'Вложенные сущности в ответе',
+    example: 'subject,group,teacher,classroom',
+    enum: SCHEDULE_EXPAND_VALUES,
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(subject|group|teacher|classroom)(,(subject|group|teacher|classroom))*$/, {
+    message: 'expand может содержать только: subject, group, teacher, classroom (через запятую)',
+  })
+  expand?: string;
+
+  @ApiPropertyOptional({ description: 'Поле сортировки', enum: ['scheduleDate', 'id'], example: 'scheduleDate' })
+  @IsOptional()
+  @IsString()
+  sort?: string;
+
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'asc', description: 'Направление сортировки' })
+  @IsOptional()
+  @IsIn(['asc', 'desc'], { message: 'order может быть только asc или desc' })
+  order?: 'asc' | 'desc';
 }

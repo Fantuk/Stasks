@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   NotFoundException,
   Param,
   ParseIntPipe,
@@ -42,11 +44,12 @@ import { BulkCreateScheduleDto } from './dto/bulk-create-schedule.dto';
 @ApiExtraModels(ScheduleResponseDto, ResponseMetaDto)
 @Controller('schedule')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.ADMIN, Role.MODERATOR)
 export class ScheduleController {
   constructor(private readonly scheduleService: ScheduleService) {}
 
   @Post()
+  @Roles(Role.ADMIN, Role.MODERATOR)
+  @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Создать занятие в расписании' })
   @ApiResponse({
     status: 201,
@@ -70,6 +73,8 @@ export class ScheduleController {
   }
 
   @Post('bulk')
+  @Roles(Role.ADMIN, Role.MODERATOR)
+  @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Массовое создание занятий (все или ничего)' })
   @ApiResponse({
     status: 201,
@@ -112,6 +117,7 @@ export class ScheduleController {
       dateTo: query.dateTo,
       page: query.page,
       limit: query.limit,
+      expand: query.expand,
     });
     return {
       success: true,
@@ -137,13 +143,15 @@ export class ScheduleController {
   async findById(
     @Param('id', ParseIntPipe) id: number,
     @GetUser() user: IAccessToken,
+    @Query('expand') expand?: string,
   ) {
-    const data = await this.scheduleService.findById(id, user.institutionId);
+    const data = await this.scheduleService.findById(id, user.institutionId, expand);
     if (!data) throw new NotFoundException('Занятие не найдено');
     return { success: true, data };
   }
 
   @Patch(':id')
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Обновить занятие' })
   @ApiResponse({
     status: 200,
@@ -168,6 +176,7 @@ export class ScheduleController {
   }
 
   @Delete(':id')
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Удалить занятие' })
   @ApiResponse({ status: 200, description: 'Занятие удалено' })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
@@ -177,6 +186,6 @@ export class ScheduleController {
     @GetUser() user: IAccessToken,
   ) {
     await this.scheduleService.remove(id, user.institutionId);
-    return { success: true, message: 'Занятие удалено' };
+    return { success: true, data: null, message: 'Занятие удалено' };
   }
 }

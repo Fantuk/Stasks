@@ -5,9 +5,11 @@ export type SchedulePersistence = {
   subjectId: number;
   groupId: number;
   teacherId: number;
-  classroomId: number;
+  classroomId: number | null;
   bellTemplateId: number;
   scheduleDate: Date;
+  /** Слот занятия: записи с одним scheduleSlotId — одно занятие (подгруппы); null = без подгрупп */
+  scheduleSlotId: string | null;
 };
 
 /** Доменная сущность занятия в расписании */
@@ -18,9 +20,10 @@ export class Schedule {
     public readonly subjectId: number,
     public readonly groupId: number,
     public readonly teacherId: number,
-    public readonly classroomId: number,
+    public readonly classroomId: number | null,
     public readonly bellTemplateId: number,
     public readonly scheduleDate: Date,
+    public readonly scheduleSlotId: string | null,
   ) {}
 
   static create(params: Omit<SchedulePersistence, 'id'>): Schedule {
@@ -30,9 +33,10 @@ export class Schedule {
       params.subjectId,
       params.groupId,
       params.teacherId,
-      params.classroomId,
+      params.classroomId ?? null,
       params.bellTemplateId,
       params.scheduleDate,
+      params.scheduleSlotId ?? null,
     );
   }
 
@@ -46,6 +50,7 @@ export class Schedule {
       raw.classroomId,
       raw.bellTemplateId,
       raw.scheduleDate,
+      raw.scheduleSlotId ?? null,
     );
   }
 
@@ -59,6 +64,7 @@ export class Schedule {
       classroomId: this.classroomId,
       bellTemplateId: this.bellTemplateId,
       scheduleDate: this.scheduleDate,
+      scheduleSlotId: this.scheduleSlotId,
     };
   }
 
@@ -72,6 +78,7 @@ export class Schedule {
       classroomId: this.classroomId,
       bellTemplateId: this.bellTemplateId,
       scheduleDate: this.scheduleDate,
+      scheduleSlotId: this.scheduleSlotId,
     };
   }
 }
