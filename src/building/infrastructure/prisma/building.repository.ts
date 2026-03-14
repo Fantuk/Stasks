@@ -193,6 +193,15 @@ export class BuildingRepository implements IBuildingRepository {
   }
 
   async remove(id: number): Promise<void> {
-    await this.prisma.building.delete({ where: { id } });
+    await this.prisma.$transaction(async (tx) => {
+      // Аудитории удаляем — у расписаний classroomId станет null (Schedule.classroom onDelete: SetNull)
+      await tx.classroom.deleteMany({
+        where: { floor: { buildingId: id } },
+      });
+      await tx.floor.deleteMany({
+        where: { buildingId: id },
+      });
+      await tx.building.delete({ where: { id } });
+    });
   }
 }

@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   NotFoundException,
   Param,
   ParseIntPipe,
@@ -40,9 +42,11 @@ import { BuildingResponseDto } from 'src/building/application/dto/building-respo
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN, Role.MODERATOR)
 export class BuildingController {
+  /** Специфичные пути (search и т.д.) должны быть объявлены выше Get(':id'). */
   constructor(private readonly buildingService: BuildingService) { }
 
   @Post()
+  @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Создать здание' })
   @ApiResponse({
     status: 201,
@@ -73,7 +77,10 @@ export class BuildingController {
   }
 
   @Get('search')
-  @ApiOperation({ summary: 'Поиск зданий с пагинацией' })
+  @ApiOperation({
+    summary: 'Поиск зданий с пагинацией',
+    description: 'Поиск по строке query. Для полного списка используйте GET /building.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
@@ -103,7 +110,10 @@ export class BuildingController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Список зданий учреждения с пагинацией' })
+  @ApiOperation({
+    summary: 'Список зданий учреждения с пагинацией',
+    description: 'Полный список зданий. Для поиска по названию используйте GET /building/search.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
@@ -132,7 +142,10 @@ export class BuildingController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Здание по id' })
+  @ApiOperation({
+    summary: 'Здание по id',
+    description: 'Параметр include: floors — вложенные этажи; floors.classrooms — дерево здание → этажи → аудитории. См. docs/api-includes.md.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Данные здания',
