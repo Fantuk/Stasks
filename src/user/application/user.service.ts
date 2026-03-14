@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { hash, genSalt } from 'bcrypt';
+import { hash, genSalt, compare } from 'bcrypt';
 import { User } from 'src/user/domain/entities/user.entity';
 import type { ISearchUsersParams, IUserRepository, IUserWithProfiles } from 'src/user/domain/user-repository.interface';
 import { ModeratorService } from 'src/moderator/application/moderator.service';
@@ -25,6 +25,7 @@ import { ICreateModeratorParams } from 'src/moderator/application/interfaces/int
 import { ICreateStudentParams } from 'src/student/application/interfaces/interfaces';
 import { ICreateTeacherParams } from 'src/teacher/application/interfaces/interfaces';
 import { IFindUserOptions } from 'src/common/interfaces/find-options.interface';
+import { paginate } from 'src/common/utils/pagination.utils';
 
 @Injectable()
 export class UserService {
@@ -65,27 +66,23 @@ export class UserService {
       const createdUser = await this.userRepository.create(userDomain);
       const userId = createdUser.id!;
 
-      try {
-        if (user.roles.includes(Role.MODERATOR)) {
-          await this.moderatorService.create({
-            userId,
-            accessRights: user.moderatorData?.accessRights,
-          });
-        }
-        if (user.roles.includes(Role.TEACHER)) {
-          await this.teacherService.create({
-            userId,
-            mentoredGroupId: user.teacherData?.mentoredGroupId,
-          });
-        }
-        if (user.roles.includes(Role.STUDENT)) {
-          await this.studentService.create({
-            userId,
-            groupId: user.studentData?.groupId,
-          });
-        }
-      } catch (error) {
-        throw error;
+      if (user.roles.includes(Role.MODERATOR)) {
+        await this.moderatorService.create({
+          userId,
+          accessRights: user.moderatorData?.accessRights,
+        });
+      }
+      if (user.roles.includes(Role.TEACHER)) {
+        await this.teacherService.create({
+          userId,
+          mentoredGroupId: user.teacherData?.mentoredGroupId,
+        });
+      }
+      if (user.roles.includes(Role.STUDENT)) {
+        await this.studentService.create({
+          userId,
+          groupId: user.studentData?.groupId,
+        });
       }
 
       return this.mapToResponse(createdUser);
@@ -126,24 +123,19 @@ export class UserService {
     institutionId: number,
     page?: number,
     limit?: number,
+    sort?: string,
+    order?: 'asc' | 'desc',
   ) {
     const { users, total } = await this.userRepository.findByInstitutionId(
       institutionId,
       page,
       limit,
+      undefined,
+      sort,
+      order ?? 'asc',
     );
-
-    const currentPage = page || 1;
-    const pageLimit = limit || 10;
-    const totalPages = Math.ceil(total / pageLimit);
-
-    return {
-      data: users.map((item) => this.mapToResponse(item.user)),
-      total,
-      page: currentPage,
-      limit: pageLimit,
-      totalPages,
-    };
+    const data = users.map((item) => this.mapToResponse(item.user));
+    return paginate(data, total, page, limit);
   }
 
   async findByIdWithRoleData(
@@ -186,19 +178,31 @@ export class UserService {
   }
 
   async search(searchParams: ISearchUsersParams) {
-    const { users, total } = await this.userRepository.search(searchParams)
+    const { users, total } = await this.userRepository.search(searchParams);
+    const data = users.map((item) => this.mapToResponseWithProfiles(item));
+    return paginate(data, total, searchParams.page, searchParams.limit);
+  }
 
-    const currentPage = searchParams.page || 1
-    const pageLimit = searchParams.limit || 10
-    const totalPages = Math.ceil(total / pageLimit)
-
-    return {
-      data: users.map((item) => this.mapToResponseWithProfiles(item)),
-      total,
-      page: currentPage,
-      limit: pageLimit,
-      totalPages,
-    };
+  /**
+   * Смена пароля текущим пользователем. Проверяет текущий пароль, хеширует новый и сохраняет.
+   */
+  async updatePassword(
+    userId: number,
+    institutionId: number,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    const result = await this.userRepository.findById(userId);
+    if (!result) throw new NotFoundException('Пользователь не найден');
+    if (result.user.institutionId !== institutionId) {
+      throw new ForbiddenException('Нет доступа к пользователю из другого учреждения');
+    }
+    const isMatch = await compare(currentPassword, result.user.password);
+    if (!isMatch) throw new BadRequestException('Неверный текущий пароль');
+    const saltRounds = Number(this.configService.get('SALT'));
+    const salt = await genSalt(saltRounds);
+    const hashedPassword = await hash(newPassword, salt);
+    await this.userRepository.update(userId, { password: hashedPassword });
   }
 
   async update(
@@ -236,14 +240,27 @@ export class UserService {
     return updatedUser.toResponse();
   }
 
-  async remove(id: number) {
-    const user = await this.userRepository.findById(id);
-    if (!user) {
-      throw new NotFoundException('Пользователь не найден');
+  async remove(id: number, institutionId?: number) {
+    const result = await this.userRepository.findById(id);
+    if (!result) {
+      throw new NotFoundException('Пользователь не найден');
+    }
+    if (
+      institutionId !== undefined &&
+      result.user.institutionId !== institutionId
+    ) {
+      throw new ForbiddenException(
+        'Нет доступа к пользователю из другого учреждения',
+      );
     }
     await this.userRepository.remove(id);
   }
 
+  /**
+   * Не используются в текущем API. Оставлены для будущих эндпоинтов
+   * (например, PATCH /users/:id/roles). При подключении к API добавить
+   * проверку учреждения по аналогии с update/remove.
+   */
   async addRoles(
     userId: number,
     role: Role,
@@ -296,6 +313,7 @@ export class UserService {
     });
   }
 
+  /** См. комментарий над addRoles. */
   async removeRole(userId: number, role: Role): Promise<User> {
     const user = await this.findById(userId);
 

@@ -10,7 +10,9 @@ export interface ISearchUsersParams {
   query?: string;
   roles?: Role[];
   page?: number;
-  limit?: number
+  limit?: number;
+  sort?: string;
+  order?: 'asc' | 'desc';
   include?: IFindUserOptions;
 }
 
@@ -31,6 +33,8 @@ export interface IUserRepository {
     page?: number,
     limit?: number,
     options?: IFindUserOptions,
+    sort?: string,
+    order?: 'asc' | 'desc',
   ): Promise<{ users: IUserWithProfiles[]; total: number }>;
   search(params: ISearchUsersParams): Promise<{ users: IUserWithProfiles[]; total: number }>;
   update(id: number, data: Partial<Omit<User, 'id'>>): Promise<User>;
