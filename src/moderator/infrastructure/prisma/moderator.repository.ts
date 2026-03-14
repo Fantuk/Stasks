@@ -9,7 +9,11 @@ import {
   IModeratorAccessRights,
   Moderator,
 } from 'src/moderator/domain/entities/moderator.entity';
-import { FindModeratorOptions, IModeratorRepository } from 'src/moderator/domain/moderator-repository.interface';
+import {
+  FindModeratorOptions,
+  IFindModeratorsByInstitutionParams,
+  IModeratorRepository,
+} from 'src/moderator/domain/moderator-repository.interface';
 import { Prisma } from '@prisma/client';
 
 @Injectable()
@@ -61,6 +65,43 @@ export class ModeratorRepository implements IModeratorRepository {
     }
 
     return this.mapToDomain(rawModerator, options?.includeUser);
+  }
+
+  async findByInstitutionId(
+    institutionId: number,
+    params?: IFindModeratorsByInstitutionParams,
+  ): Promise<{ moderators: Moderator[]; total: number }> {
+    const page = params?.page ?? 1;
+    const limit = params?.limit ?? 10;
+    const query = params?.query?.trim();
+    const skip = (page - 1) * limit;
+
+    const where = {
+      user: {
+        institutionId,
+        ...(query && {
+          OR: [
+            { name: { contains: query, mode: 'insensitive' as const } },
+            { surname: { contains: query, mode: 'insensitive' as const } },
+            { email: { contains: query, mode: 'insensitive' as const } },
+          ],
+        }),
+      },
+    };
+
+    const [total, raw] = await Promise.all([
+      this.prisma.moderator.count({ where }),
+      this.prisma.moderator.findMany({
+        where,
+        include: { user: true },
+        skip,
+        take: limit,
+        orderBy: { id: 'asc' },
+      }),
+    ]);
+
+    const moderators = raw.map((r) => this.mapToDomain(r, true));
+    return { moderators, total };
   }
 
   async update(userId: number, moderator: Moderator): Promise<Moderator> {

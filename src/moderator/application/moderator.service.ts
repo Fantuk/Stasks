@@ -7,7 +7,10 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { IModeratorRepository } from 'src/moderator/domain/moderator-repository.interface';
+import type {
+  IModeratorRepository,
+  IFindModeratorsByInstitutionParams,
+} from 'src/moderator/domain/moderator-repository.interface';
 import {
   IModeratorAccessRights,
   Moderator,
@@ -45,13 +48,32 @@ export class ModeratorService {
     return this.moderatorRepository.create(createdModerator);
   }
 
+  async findByInstitutionId(
+    institutionId: number,
+    params?: IFindModeratorsByInstitutionParams,
+  ) {
+    const { moderators, total } = await this.moderatorRepository.findByInstitutionId(
+      institutionId,
+      params,
+    );
+    const page = params?.page ?? 1;
+    const limit = params?.limit ?? 10;
+    return {
+      data: moderators.map((m) => m.toResponse(true)),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
+    };
+  }
+
   async findByUserId(
     userId: number,
     institutionId?: number,
     options?: IFindOneOptions,
   ): Promise<Moderator | null> {
     const includeUser = shouldIncludeUser(options);
-    const moderator = this.moderatorRepository.findByUserId(userId, {
+    const moderator = await this.moderatorRepository.findByUserId(userId, {
       includeUser,
     });
     if (!moderator) return null;

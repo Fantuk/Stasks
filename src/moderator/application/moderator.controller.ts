@@ -20,17 +20,49 @@ import { GetUser } from 'src/common/decorators/get-user.decorator';
 import type { IAccessToken } from 'src/token/application/interfaces/interfaces';
 import { ApiSuccessResponse } from 'src/common/interfaces/api-response.interface';
 import { API_ERROR_RESPONSE_SCHEMA, createSuccessResponseSchema } from 'src/common/interfaces/api-response.interface';
-import { parseIncludeOption } from 'src/common/utils/query.utils';
+import { parseIncludeOption, shouldIncludeUser } from 'src/common/utils/query.utils';
 import { ModeratorResponseDto } from 'src/moderator/application/dto/moderator-response.dto';
 import { UserResponseDto } from 'src/user/application/dto/user-response.dto';
+import { GetModeratorsQueryDto } from './dto/get-moderators-query.dto';
+import { ResponseMetaDto } from 'src/common/interfaces/api-response.interface';
 
 @ApiTags('Moderators')
 @ApiBearerAuth('JWT')
-@ApiExtraModels(ModeratorResponseDto, UserResponseDto)
+@ApiExtraModels(ModeratorResponseDto, UserResponseDto, ResponseMetaDto)
 @Controller('moderator')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ModeratorController {
   constructor(private readonly moderatorService: ModeratorService) { }
+
+  @Get()
+  @ApiOperation({ summary: 'Список модераторов учреждения с пагинацией и поиском' })
+  @ApiResponse({
+    status: 200,
+    description: 'Список и meta',
+    schema: createSuccessResponseSchema(getSchemaPath(ModeratorResponseDto), { withMeta: true, isArray: true }),
+  })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
+  @Roles(Role.ADMIN, Role.MODERATOR)
+  async findAll(
+    @GetUser() user: IAccessToken,
+    @Query() query: GetModeratorsQueryDto,
+  ) {
+    const result = await this.moderatorService.findByInstitutionId(user.institutionId, {
+      page: query.page,
+      limit: query.limit,
+      query: query.query,
+    });
+    return {
+      success: true,
+      data: result.data,
+      meta: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+      },
+    };
+  }
 
   @Get(':userId')
   @ApiOperation({ summary: 'Модератор по id пользователя' })
@@ -54,8 +86,8 @@ export class ModeratorController {
       options,
     );
 
-    if (!moderator) throw new NotFoundException('Модератор не найден по id ' + userId);
-    const includeUser = options?.include?.includes('user') ?? false;
+    if (!moderator) throw new NotFoundException('Модератор не найден по id ' + userId);
+    const includeUser = shouldIncludeUser(options);
     return {
       success: true,
       data: moderator.toResponse(includeUser),
