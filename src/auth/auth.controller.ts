@@ -5,6 +5,8 @@ import {
   Res,
   UseInterceptors,
   Req,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiExtraModels, getSchemaPath } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
@@ -37,6 +39,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) { }
 
   @Post('register')
+  @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth('JWT')
   @ApiOperation({ summary: 'Регистрация пользователя', description: 'Только ADMIN или модератор с правом canRegisterUsers' })
   @ApiResponse({
