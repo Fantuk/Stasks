@@ -4,7 +4,7 @@ import { PageBreadcrumb } from "@/app/components/PageBreadcrumb/PageBreadcrumb";
 export default function Home() {
   return (
     <>
-      <PageBreadcrumb items={[{ label: "Главная" }]} />
+      <PageBreadcrumb items={[{ label: 'Главная' }]} />
       <HomeContent />
     </>
   );
