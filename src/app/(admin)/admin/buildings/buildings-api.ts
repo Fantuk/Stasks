@@ -4,6 +4,10 @@
  */
 
 import { api } from "@/lib/api";
+
+/** Ключи React Query для зданий (список и детали) */
+export const BUILDINGS_QUERY_KEY = "admin-buildings" as const;
+export const BUILDING_DETAIL_QUERY_KEY = "admin-building-detail" as const;
 import { components } from "@/app/types/api";
 
 /** Элемент списка зданий (BuildingResponseDto) */
