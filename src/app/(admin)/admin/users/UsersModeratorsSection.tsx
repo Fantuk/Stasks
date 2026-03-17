@@ -15,6 +15,7 @@ import {
   type ModeratorListItem,
   type PaginationMeta,
 } from "@/app/(admin)/admin/users/users-api";
+import { getApiErrorMessage } from "@/lib/api-errors";
 
 const LIMIT = 10;
 
@@ -143,7 +144,7 @@ export function UsersModeratorsSection() {
 
       {isError && (
         <p className="text-sm text-destructive" role="alert">
-          {error instanceof Error ? error.message : "Не удалось загрузить список модераторов"}
+          {getApiErrorMessage(error, "Не удалось загрузить список модераторов")}
         </p>
       )}
 

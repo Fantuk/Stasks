@@ -10,6 +10,8 @@ import {
   updateModeratorAccessRights,
   MODERATORS_QUERY_KEY,
 } from "@/app/(admin)/admin/users/users-api";
+import { getApiErrorMessage } from "@/lib/api-errors";
+import { invalidateAndRefetch } from "@/lib/queryClient";
 import { DialogFooter } from "@/app/components/ui/dialog";
 
 /** Права из ответа API (в схеме OpenAPI могут быть типизированы иначе) */
@@ -57,8 +59,7 @@ export function ModeratorRightsForm({
     mutationFn: (body: { canDeleteUsers: boolean; canRegisterUsers: boolean }) =>
       updateModeratorAccessRights(userId, body),
     onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: [MODERATORS_QUERY_KEY] });
-      await queryClient.refetchQueries({ queryKey: [MODERATORS_QUERY_KEY] });
+      await invalidateAndRefetch(queryClient, [MODERATORS_QUERY_KEY]);
       onSuccess();
     },
   });
@@ -75,7 +76,7 @@ export function ModeratorRightsForm({
   };
 
   const displayError =
-    error ?? (updateMutation.error instanceof Error ? updateMutation.error.message : null);
+    error ?? (updateMutation.error != null ? getApiErrorMessage(updateMutation.error) : null);
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">

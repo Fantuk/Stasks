@@ -16,6 +16,8 @@ import {
   type GroupListItem,
   type PaginationMeta,
 } from "@/app/(admin)/admin/groups/groups-api";
+import { getApiErrorMessage } from "@/lib/api-errors";
+import { invalidateAndRefetch } from "@/lib/queryClient";
 
 const LIMIT = 10;
 const GROUPS_QUERY_KEY = "admin-groups" as const;
@@ -44,8 +46,7 @@ export function GroupsContent() {
   const deleteMutation = useMutation({
     mutationFn: deleteGroup,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [GROUPS_QUERY_KEY] });
-      await queryClient.refetchQueries({ queryKey: [GROUPS_QUERY_KEY] });
+      await invalidateAndRefetch(queryClient, [GROUPS_QUERY_KEY]);
     },
   });
 
@@ -160,7 +161,7 @@ export function GroupsContent() {
 
       {isError && (
         <p className="text-sm text-destructive" role="alert">
-          {error instanceof Error ? error.message : "Не удалось загрузить список групп"}
+          {getApiErrorMessage(error, "Не удалось загрузить список групп")}
         </p>
       )}
 

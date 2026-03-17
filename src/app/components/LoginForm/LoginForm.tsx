@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { AxiosError } from "axios";
 import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -14,6 +13,7 @@ import {
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { api } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api-errors";
 import {
   useAuthStore,
   hasAdminAccess,
@@ -23,7 +23,8 @@ import {
 type LoginResponse = {
   success?: boolean;
   data?: { accessToken: string };
-  errors?: string[];
+  message?: string;
+  errors?: Array<{ field?: string; message?: string }>;
 };
 
 /**
@@ -59,11 +60,16 @@ export function LoginForm() {
       const { success, data, errors } = response.data;
 
       if (!success) {
-        if (errors && errors.length > 0) {
-          setError(errors.join(", "));
-        } else {
-          setError("Не удалось выполнить вход. Попробуйте ещё раз.");
-        }
+        const msg =
+          response.data?.message ||
+          (errors && Array.isArray(errors) && errors.length > 0
+            ? errors
+                .map((e) => (e && typeof e === "object" && e.message ? String(e.message) : ""))
+                .filter(Boolean)
+                .join(", ")
+            : null) ||
+          "Не удалось выполнить вход. Попробуйте ещё раз.";
+        setError(msg);
         return;
       }
 
@@ -86,17 +92,9 @@ export function LoginForm() {
         router.push("/");
       }
     } catch (err) {
-      const axiosError = err as AxiosError<LoginResponse>;
-      const responseErrors = axiosError.response?.data?.errors;
-      if (responseErrors && responseErrors.length > 0) {
-        setError(responseErrors.join(", "));
-      } else {
-        setError(
-          axiosError.response?.status === 401
-            ? "Неверный email или пароль."
-            : "Ошибка соединения с сервером. Попробуйте ещё раз.",
-        );
-      }
+      setError(
+        getApiErrorMessage(err, "Ошибка соединения с сервером. Попробуйте ещё раз."),
+      );
     } finally {
       setIsSubmitting(false);
     }

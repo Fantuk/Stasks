@@ -17,6 +17,8 @@ import {
   type SubjectWithTeachers,
   type PaginationMeta,
 } from "@/app/(admin)/admin/items/subjects-api";
+import { getApiErrorMessage } from "@/lib/api-errors";
+import { invalidateAndRefetch } from "@/lib/queryClient";
 
 const LIMIT = 10;
 const SUBJECTS_QUERY_KEY = "admin-subjects" as const;
@@ -50,8 +52,7 @@ export function SubjectsContent() {
   const deleteMutation = useMutation({
     mutationFn: deleteSubject,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [SUBJECTS_QUERY_KEY] });
-      await queryClient.refetchQueries({ queryKey: [SUBJECTS_QUERY_KEY] });
+      await invalidateAndRefetch(queryClient, [SUBJECTS_QUERY_KEY]);
     },
   });
 
@@ -165,9 +166,7 @@ export function SubjectsContent() {
 
       {isError && (
         <p className="text-sm text-destructive" role="alert">
-          {error instanceof Error
-            ? error.message
-            : "Не удалось загрузить список предметов"}
+          {getApiErrorMessage(error, "Не удалось загрузить список предметов")}
         </p>
       )}
 

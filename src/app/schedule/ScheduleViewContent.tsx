@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { isAxiosError } from "axios";
+import { getApiErrorMessage } from "@/lib/api-errors";
 import { BookOpen, User, Users } from "lucide-react";
 import { fetchGroups } from "@/app/(admin)/admin/groups/groups-api";
 import { fetchTeachers } from "@/app/(admin)/admin/users/users-api";
@@ -14,50 +14,15 @@ import {
   fetchScheduleView,
   type ScheduleViewItem,
 } from "@/app/schedule/schedule-api";
+import {
+  formatDateLabel,
+  formatTimeShort,
+  getWeekRangeIso,
+  WEEKDAY_LIST,
+} from "@/lib/schedule-utils";
 
 const MIN_WEEK_OFFSET = -1;
 const MAX_WEEK_OFFSET = 1;
-
-/** Дни для табов: короткое имя и полное (по макету Figma) */
-const WEEKDAY_TABS = [
-  { value: 1, short: "Пн", full: "Понедельник" },
-  { value: 2, short: "Вт", full: "Вторник" },
-  { value: 3, short: "Ср", full: "Среда" },
-  { value: 4, short: "Чт", full: "Четверг" },
-  { value: 5, short: "Пт", full: "Пятница" },
-  { value: 6, short: "Сб", full: "Суббота" },
-  { value: 7, short: "Вс", full: "Воскресенье" },
-] as const;
-
-/** Формат даты: ДД.ММ.ГГ */
-function formatDateLabel(date: Date): string {
-  const dd = date.getDate().toString().padStart(2, "0");
-  const mm = (date.getMonth() + 1).toString().padStart(2, "0");
-  const yy = (date.getFullYear() % 100).toString().padStart(2, "0");
-  return `${dd}.${mm}.${yy}`;
-}
-
-/** Диапазон недели (Пн 00:00 — Вс 23:59) по смещению от текущей */
-function getWeekRangeIso(weekOffset: number): { from: string; to: string } {
-  const now = new Date();
-  const day = now.getDay() || 7; // 1..7, 1 = Пн
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - (day - 1) + weekOffset * 7);
-  monday.setHours(0, 0, 0, 0);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
-  return { from: monday.toISOString(), to: sunday.toISOString() };
-}
-
-/** Время из ISO в "ЧЧ:ММ" */
-function formatTimeShort(isoTime: string | Date | null | undefined): string {
-  if (!isoTime) return "—";
-  const date = typeof isoTime === "string" ? new Date(isoTime) : isoTime;
-  const h = date.getUTCHours();
-  const m = date.getUTCMinutes();
-  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-}
 
 /** Расписание по дням: ключ 1–7 (Пн–Вс), значение — слоты с занятиями */
 function useScheduleByWeekday(
@@ -340,12 +305,10 @@ export function ScheduleViewContent() {
           <p className="py-12 text-center text-[#929292]">Загружаем расписание…</p>
         ) : isError ? (
           <p className="py-12 text-center text-destructive">
-            {isAxiosError(error) && error.response?.data?.message
-              ? String(error.response.data.message)
-              : "Не удалось загрузить расписание."}
+            {getApiErrorMessage(error, "Не удалось загрузить расписание.")}
           </p>
         ) : (
-          WEEKDAY_TABS.map(({ value: weekday, full }) => {
+          WEEKDAY_LIST.map(({ value: weekday, full }) => {
             const daySlots = scheduleByWeekday[weekday] ?? [];
             const dayDate = getDateForWeekday(weekday);
             return (

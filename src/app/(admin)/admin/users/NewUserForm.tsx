@@ -3,8 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { AxiosError } from "axios";
 import { api } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api-errors";
 import { Button } from "@/app/components/ui/button";
 import {
   Card,
@@ -27,12 +27,6 @@ type RegisterBody = {
   email: string;
   password: string;
   roles: Role[];
-};
-
-type ApiError = {
-  success?: boolean;
-  message?: string;
-  errors?: string[] | Array<{ field?: string; message?: string }>;
 };
 
 type NewUserFormProps = {
@@ -118,19 +112,7 @@ export function NewUserForm({ embedded = false }: NewUserFormProps) {
         setRoles(["STUDENT"]);
       }
     } catch (err) {
-      const ax = err as AxiosError<ApiError>;
-      const data = ax.response?.data;
-      const errList = data?.errors;
-      const msg =
-        data?.message ||
-        (Array.isArray(errList)
-          ? errList
-              .map((e) => (typeof e === "string" ? e : e?.message))
-              .filter(Boolean)
-              .join(", ")
-          : null) ||
-        "Не удалось создать пользователя.";
-      setError(msg);
+      setError(getApiErrorMessage(err, "Не удалось создать пользователя."));
     } finally {
       setIsSubmitting(false);
     }

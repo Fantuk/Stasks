@@ -56,12 +56,13 @@ export type SubjectResponse = {
   message?: string | null;
 };
 
-/** Параметры списка (без поиска) */
+/** Параметры списка (без поиска). groupId — только предметы, привязанные к группе (для расписания). */
 export type SubjectsListParams = {
   page: number;
   limit: number;
   sort?: string;
   order?: "asc" | "desc";
+  groupId?: number;
 };
 
 /** Параметры поиска предметов */
@@ -71,20 +72,36 @@ const defaultLimit = 10;
 
 /**
  * Список предметов: GET /api/subject (пагинация, без поиска).
+ * При передаче groupId возвращаются только предметы, привязанные к этой группе.
  */
 export async function fetchSubjects(
   params: SubjectsListParams
 ): Promise<{ data: SubjectListItem[]; meta: PaginationMeta }> {
-  const { page, limit = defaultLimit, sort, order } = params;
+  const { page, limit = defaultLimit, sort, order, groupId } = params;
   const requestParams: Record<string, string | number> = { page, limit };
   if (sort) requestParams.sort = sort;
   if (order) requestParams.order = order;
+  if (groupId != null) requestParams.groupId = groupId;
   const res = await api.get<SubjectsListResponse>("/api/subject", {
     params: requestParams,
   });
   const body = res.data;
   if (!body.success || !body.data)
     throw new Error("Не удалось загрузить список предметов");
+  return { data: body.data, meta: body.meta! };
+}
+
+/**
+ * Предметы, привязанные к группе: GET /api/group/:id/subjects.
+ * Используется в расписании по группе (id в пути, без query-параметров).
+ */
+export async function fetchSubjectsByGroupId(
+  groupId: number
+): Promise<{ data: SubjectListItem[]; meta: PaginationMeta }> {
+  const res = await api.get<SubjectsListResponse>(`/api/group/${groupId}/subjects`);
+  const body = res.data;
+  if (!body.success || !Array.isArray(body.data))
+    throw new Error("Не удалось загрузить предметы группы");
   return { data: body.data, meta: body.meta! };
 }
 

@@ -23,6 +23,8 @@ import {
   SelectionSidePanel,
   type SelectionOption,
 } from "@/app/components/SelectionSidePanel";
+import { getApiErrorMessage } from "@/lib/api-errors";
+import { invalidateAndRefetch } from "@/lib/queryClient";
 
 const GROUPS_QUERY_KEY = "admin-groups" as const;
 const TEACHERS_LIST_KEY = "groups-form-teachers" as const;
@@ -109,8 +111,7 @@ export function GroupEditForm({
   const createMutation = useMutation({
     mutationFn: createGroup,
     onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: [GROUPS_QUERY_KEY] });
-      await queryClient.refetchQueries({ queryKey: [GROUPS_QUERY_KEY] });
+      await invalidateAndRefetch(queryClient, [GROUPS_QUERY_KEY]);
       onSuccess();
     },
   });
@@ -119,8 +120,7 @@ export function GroupEditForm({
     mutationFn: ({ id, name: n }: { id: number; name: string }) =>
       updateGroup(id, { name: n }),
     onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: [GROUPS_QUERY_KEY] });
-      await queryClient.refetchQueries({ queryKey: [GROUPS_QUERY_KEY] });
+      await invalidateAndRefetch(queryClient, [GROUPS_QUERY_KEY]);
     },
   });
 
@@ -184,11 +184,10 @@ export function GroupEditForm({
           await assignGroupStudents(groupId, toAdd);
         }
       }
-      queryClient.invalidateQueries({ queryKey: [GROUPS_QUERY_KEY] });
-      await queryClient.refetchQueries({ queryKey: [GROUPS_QUERY_KEY] });
+      await invalidateAndRefetch(queryClient, [GROUPS_QUERY_KEY]);
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось сохранить");
+      setError(getApiErrorMessage(err, "Не удалось сохранить"));
     } finally {
       setIsSubmittingLocal(false);
     }
@@ -211,8 +210,7 @@ export function GroupEditForm({
   const submitError =
     createMutation.error ?? updateMutation.error;
   const displayError =
-    error ??
-    (submitError instanceof Error ? submitError.message : null);
+    error ?? (submitError != null ? getApiErrorMessage(submitError) : null);
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">

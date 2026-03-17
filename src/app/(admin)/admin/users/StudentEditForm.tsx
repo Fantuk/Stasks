@@ -17,6 +17,8 @@ import {
   removeStudentFromGroup,
   STUDENTS_QUERY_KEY,
 } from "@/app/(admin)/admin/users/users-api";
+import { getApiErrorMessage } from "@/lib/api-errors";
+import { invalidateAndRefetch } from "@/lib/queryClient";
 import { DialogFooter } from "@/app/components/ui/dialog";
 import {
   SelectionSidePanel,
@@ -140,13 +142,10 @@ export function StudentEditForm({
         }
       }
 
-      await queryClient.invalidateQueries({ queryKey: [STUDENTS_QUERY_KEY] });
-      await queryClient.refetchQueries({ queryKey: [STUDENTS_QUERY_KEY] });
+      await invalidateAndRefetch(queryClient, [STUDENTS_QUERY_KEY]);
       onSuccess();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Не удалось сохранить изменения"
-      );
+      setError(getApiErrorMessage(err, "Не удалось сохранить изменения"));
     } finally {
       setIsSubmitting(false);
     }
@@ -232,9 +231,7 @@ export function StudentEditForm({
           />
           {groupsError && (
             <p className="text-xs text-destructive">
-              {groupsErrorDetail instanceof Error
-                ? groupsErrorDetail.message
-                : "Не удалось загрузить список групп"}
+              {getApiErrorMessage(groupsErrorDetail, "Не удалось загрузить список групп")}
             </p>
           )}
         </div>

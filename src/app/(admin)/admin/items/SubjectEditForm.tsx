@@ -24,6 +24,8 @@ import {
   SelectionSidePanel,
   type SelectionOption,
 } from "@/app/components/SelectionSidePanel";
+import { getApiErrorMessage } from "@/lib/api-errors";
+import { invalidateAndRefetch } from "@/lib/queryClient";
 
 const SUBJECTS_QUERY_KEY = "admin-subjects" as const;
 const TEACHERS_LIST_QUERY_KEY = "teachers-list-for-subject" as const;
@@ -108,8 +110,7 @@ export function SubjectEditForm({
   const createMutation = useMutation({
     mutationFn: createSubject,
     onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: [SUBJECTS_QUERY_KEY] });
-      await queryClient.refetchQueries({ queryKey: [SUBJECTS_QUERY_KEY] });
+      await invalidateAndRefetch(queryClient, [SUBJECTS_QUERY_KEY]);
       onSuccess();
     },
   });
@@ -118,8 +119,7 @@ export function SubjectEditForm({
     mutationFn: ({ id, name: n }: { id: number; name: string }) =>
       updateSubject(id, { name: n }),
     onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: [SUBJECTS_QUERY_KEY] });
-      await queryClient.refetchQueries({ queryKey: [SUBJECTS_QUERY_KEY] });
+      await invalidateAndRefetch(queryClient, [SUBJECTS_QUERY_KEY]);
     },
   });
 
@@ -169,11 +169,10 @@ export function SubjectEditForm({
         if (groupToAdd.length > 0) {
           await assignSubjectGroups(subjectId, groupToAdd);
         }
-        queryClient.invalidateQueries({ queryKey: [SUBJECTS_QUERY_KEY] });
-        await queryClient.refetchQueries({ queryKey: [SUBJECTS_QUERY_KEY] });
+        await invalidateAndRefetch(queryClient, [SUBJECTS_QUERY_KEY]);
         onSuccess();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Не удалось сохранить");
+        setError(getApiErrorMessage(err, "Не удалось сохранить"));
       }
       return;
     }
@@ -182,7 +181,7 @@ export function SubjectEditForm({
 
   const submitError = createMutation.error ?? updateMutation.error;
   const displayError =
-    error ?? (submitError instanceof Error ? submitError.message : null);
+    error ?? (submitError != null ? getApiErrorMessage(submitError) : null);
 
   // Боковые панели выбора: преподаватели и группы (checkbox)
   const [teachersPanelOpen, setTeachersPanelOpen] = React.useState(false);

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api-errors";
 import { useAuthStore } from "@/stores/auth.store";
 import {
   Card,
@@ -106,11 +107,7 @@ export default function ProfilePage() {
         setSubmitError(res.data?.message ?? "Не удалось обновить данные");
       }
     } catch (err: unknown) {
-      const msg =
-        err && typeof err === "object" && "response" in err && typeof (err as { response?: { data?: { message?: string } } }).response?.data?.message === "string"
-          ? (err as { response: { data: { message: string } } }).response.data.message
-          : "Ошибка при сохранении";
-      setSubmitError(msg);
+      setSubmitError(getApiErrorMessage(err, "Ошибка при сохранении"));
     } finally {
       setSubmitLoading(false);
     }
@@ -144,11 +141,7 @@ export default function ProfilePage() {
         setPasswordError(res.data?.message ?? "Не удалось сменить пароль");
       }
     } catch (err: unknown) {
-      const msg =
-        err && typeof err === "object" && "response" in err && typeof (err as { response?: { data?: { message?: string } } }).response?.data?.message === "string"
-          ? (err as { response: { data: { message: string } } }).response.data.message
-          : "Ошибка при смене пароля";
-      setPasswordError(msg);
+      setPasswordError(getApiErrorMessage(err, "Ошибка при смене пароля"));
     } finally {
       setPasswordLoading(false);
     }

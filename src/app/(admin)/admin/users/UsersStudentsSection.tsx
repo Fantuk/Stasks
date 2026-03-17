@@ -15,6 +15,7 @@ import {
   type UserSearchStudentItem,
   type PaginationMeta,
 } from "@/app/(admin)/admin/users/users-api";
+import { getApiErrorMessage } from "@/lib/api-errors";
 
 const LIMIT = 10;
 
@@ -120,7 +121,7 @@ export function UsersStudentsSection() {
 
       {isError && (
         <p className="text-sm text-destructive" role="alert">
-          {error instanceof Error ? error.message : "Не удалось загрузить список студентов"}
+          {getApiErrorMessage(error, "Не удалось загрузить список студентов")}
         </p>
       )}
 

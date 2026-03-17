@@ -18,6 +18,8 @@ import {
   removeTeacherMentoredGroup,
   TEACHERS_QUERY_KEY,
 } from "@/app/(admin)/admin/users/users-api";
+import { getApiErrorMessage } from "@/lib/api-errors";
+import { invalidateAndRefetch } from "@/lib/queryClient";
 import { DialogFooter } from "@/app/components/ui/dialog";
 import {
   SelectionSidePanel,
@@ -126,11 +128,10 @@ export function TeacherEditForm({
           await assignSubjectTeachers(subjectId, [userId]);
         }
       }
-      queryClient.invalidateQueries({ queryKey: [TEACHERS_QUERY_KEY] });
-      await queryClient.refetchQueries({ queryKey: [TEACHERS_QUERY_KEY] });
+      await invalidateAndRefetch(queryClient, [TEACHERS_QUERY_KEY]);
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось сохранить");
+      setError(getApiErrorMessage(err, "Не удалось сохранить"));
     } finally {
       setIsSubmittingLocal(false);
     }

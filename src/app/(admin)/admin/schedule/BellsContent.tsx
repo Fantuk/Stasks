@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { isAxiosError } from "axios";
+import { getApiErrorMessage } from "@/lib/api-errors";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -15,276 +15,31 @@ import {
   type CreateBellTemplateBody,
 } from "@/app/(admin)/admin/schedule/bells-api";
 import { fetchGroups } from "@/app/(admin)/admin/groups/groups-api";
+import {
+  buildSlotBody,
+  compareCards,
+  createDraft,
+  createDraftFromCard,
+  createEmptyEditSlot,
+  formatCardScope,
+  getScopeKey,
+  getSlotsByLesson,
+  groupSlotsToCards,
+  type BellTemplateCard,
+  type BellTemplateDraft,
+  type EditSlotValue,
+  LESSON_NUMBERS,
+  type TemplateScheduleType,
+  type TemplateScope,
+  toggleWeekdaySelection,
+  getSelectedWeekdays,
+} from "@/app/(admin)/admin/schedule/bells-utils";
+import { invalidateAndRefetch } from "@/lib/queryClient";
+import { formatTimeFigma, getWeekdayLabel, WEEKDAY_LIST } from "@/lib/schedule-utils";
 
 const BELLS_QUERY_KEY = "admin-bells" as const;
 const GROUPS_QUERY_KEY = "admin-groups" as const;
 const NEW_CARD_KEY = "__new-bell-template__" as const;
-const LESSON_NUMBERS = [1, 2, 3, 4, 5, 6] as const;
-
-const WEEKDAY_LABELS: { value: number; label: string }[] = [
-  { value: 1, label: "Пн" },
-  { value: 2, label: "Вт" },
-  { value: 3, label: "Ср" },
-  { value: 4, label: "Чт" },
-  { value: 5, label: "Пт" },
-  { value: 6, label: "Сб" },
-  { value: 7, label: "Вс" },
-];
-
-type TemplateScheduleType = "date" | "weekday";
-
-type EditSlotValue = {
-  startTime: string;
-  endTime: string;
-  secondStartTime: string;
-  secondEndTime: string;
-};
-
-type TemplateScope = {
-  scheduleType: TemplateScheduleType;
-  specificDate: string | null;
-  weekdayStart: number | null;
-  weekdayEnd: number | null;
-  groupId: number | null;
-};
-
-type BellTemplateCard = TemplateScope & {
-  key: string;
-  slots: BellTemplateSlot[];
-};
-
-type BellTemplateDraft = TemplateScope & {
-  slots: Record<number, EditSlotValue>;
-};
-
-/** Время из ISO в формат макета "HH : mm" */
-function formatTimeFigma(iso: string | Date | null | undefined): string {
-  if (!iso) return "-- : --";
-  const date = typeof iso === "string" ? new Date(iso) : iso;
-  const hours = date.getUTCHours().toString().padStart(2, "0");
-  const minutes = date.getUTCMinutes().toString().padStart(2, "0");
-  return `${hours} : ${minutes}`;
-}
-
-/** ISO → "HH:mm" для input[type=time] */
-function isoTimeToInput(iso: string | Date | null | undefined): string {
-  if (!iso) return "";
-  const date = typeof iso === "string" ? new Date(iso) : iso;
-  const hours = date.getUTCHours().toString().padStart(2, "0");
-  const minutes = date.getUTCMinutes().toString().padStart(2, "0");
-  return `${hours}:${minutes}`;
-}
-
-/** "HH:mm" → ISO (UTC, 1970-01-01) для API */
-function inputTimeToIso(hhmm: string): string {
-  if (!hhmm) return "";
-  const [hours, minutes] = hhmm.split(":").map(Number);
-  const date = new Date(Date.UTC(1970, 0, 1, hours ?? 0, minutes ?? 0, 0, 0));
-  return date.toISOString();
-}
-
-function createEmptyEditSlot(): EditSlotValue {
-  return {
-    startTime: "",
-    endTime: "",
-    secondStartTime: "",
-    secondEndTime: "",
-  };
-}
-
-function createEmptyDraftSlots(): Record<number, EditSlotValue> {
-  return LESSON_NUMBERS.reduce<Record<number, EditSlotValue>>((acc, lessonNumber) => {
-    acc[lessonNumber] = createEmptyEditSlot();
-    return acc;
-  }, {});
-}
-
-function normalizeSpecificDate(value: string | Date | null | undefined): string | null {
-  if (!value) return null;
-  return new Date(value).toISOString().slice(0, 10);
-}
-
-function getWeekdayLabel(value: number | null | undefined): string {
-  return WEEKDAY_LABELS.find((item) => item.value === value)?.label ?? "Не задано";
-}
-
-function getSelectedWeekdays(scope: Pick<TemplateScope, "weekdayStart" | "weekdayEnd">): number[] {
-  if (scope.weekdayStart == null || scope.weekdayEnd == null) {
-    return [];
-  }
-  if (scope.weekdayStart > scope.weekdayEnd) {
-    return [];
-  }
-  return Array.from(
-    { length: scope.weekdayEnd - scope.weekdayStart + 1 },
-    (_, index) => scope.weekdayStart! + index
-  );
-}
-
-/**
- * Оставляем старую механику выбора дней:
- * пользователь кликает по дням, а мы поддерживаем непрерывный диапазон.
- */
-function toggleWeekdaySelection(selectedDays: number[], day: number): number[] {
-  const rangeStart = selectedDays.length ? Math.min(...selectedDays) : 1;
-  const rangeEnd = selectedDays.length ? Math.max(...selectedDays) : 7;
-  const isUnchecking = selectedDays.includes(day);
-
-  if (isUnchecking) {
-    if (day === rangeEnd) {
-      if (rangeStart === rangeEnd) return [];
-      return Array.from({ length: rangeEnd - rangeStart }, (_, index) => rangeStart + index);
-    }
-    if (day === rangeStart) {
-      if (rangeStart === rangeEnd) return [];
-      return Array.from({ length: rangeEnd - rangeStart }, (_, index) => rangeStart + index + 1);
-    }
-    return Array.from({ length: day - rangeStart }, (_, index) => rangeStart + index);
-  }
-
-  const next = [...selectedDays, day].sort((a, b) => a - b);
-  const nextStart = Math.min(...next);
-  const nextEnd = Math.max(...next);
-  return Array.from({ length: nextEnd - nextStart + 1 }, (_, index) => nextStart + index);
-}
-
-function getScopeKey(scope: TemplateScope): string {
-  const groupKey = scope.groupId == null ? "all" : String(scope.groupId);
-  if (scope.scheduleType === "date") {
-    return `date:${scope.specificDate ?? ""}:group:${groupKey}`;
-  }
-  return `weekday:${scope.weekdayStart ?? ""}:${scope.weekdayEnd ?? ""}:group:${groupKey}`;
-}
-
-function getScopeFromSlot(slot: BellTemplateSlot): TemplateScope {
-  return {
-    scheduleType: slot.scheduleType,
-    specificDate: normalizeSpecificDate(slot.specificDate),
-    weekdayStart: slot.weekdayStart ?? null,
-    weekdayEnd: slot.weekdayEnd ?? null,
-    groupId: slot.groupId ?? null,
-  };
-}
-
-function createDraft(initial?: Partial<TemplateScope>): BellTemplateDraft {
-  return {
-    scheduleType: initial?.scheduleType ?? "weekday",
-    specificDate: initial?.specificDate ?? new Date().toISOString().slice(0, 10),
-    weekdayStart: initial?.weekdayStart ?? 1,
-    weekdayEnd: initial?.weekdayEnd ?? 5,
-    groupId: initial?.groupId ?? null,
-    slots: createEmptyDraftSlots(),
-  };
-}
-
-function createDraftFromCard(card: BellTemplateCard): BellTemplateDraft {
-  const draft = createDraft(card);
-  for (const slot of card.slots) {
-    draft.slots[slot.lessonNumber] = {
-      startTime: isoTimeToInput(slot.startTime),
-      endTime: isoTimeToInput(slot.endTime),
-      secondStartTime: isoTimeToInput(slot.secondStartTime),
-      secondEndTime: isoTimeToInput(slot.secondEndTime),
-    };
-  }
-  return draft;
-}
-
-function getSlotsByLesson(slots: BellTemplateSlot[]): Map<number, BellTemplateSlot> {
-  const map = new Map<number, BellTemplateSlot>();
-  for (const slot of slots) {
-    map.set(slot.lessonNumber, slot);
-  }
-  return map;
-}
-
-function compareCards(a: BellTemplateCard, b: BellTemplateCard): number {
-  if (a.scheduleType !== b.scheduleType) {
-    return a.scheduleType === "weekday" ? -1 : 1;
-  }
-  if (a.scheduleType === "weekday" && b.scheduleType === "weekday") {
-    if ((a.weekdayStart ?? 0) !== (b.weekdayStart ?? 0)) {
-      return (a.weekdayStart ?? 0) - (b.weekdayStart ?? 0);
-    }
-    if ((a.weekdayEnd ?? 0) !== (b.weekdayEnd ?? 0)) {
-      return (a.weekdayEnd ?? 0) - (b.weekdayEnd ?? 0);
-    }
-  }
-  if (a.scheduleType === "date" && b.scheduleType === "date") {
-    return (a.specificDate ?? "").localeCompare(b.specificDate ?? "");
-  }
-  if ((a.groupId ?? -1) !== (b.groupId ?? -1)) {
-    return (a.groupId ?? -1) - (b.groupId ?? -1);
-  }
-  return a.key.localeCompare(b.key);
-}
-
-/**
- * API возвращает отдельные строки по урокам.
- * На экране группируем их в "карточки шаблонов" по общему scope.
- */
-function groupSlotsToCards(slots: BellTemplateSlot[]): BellTemplateCard[] {
-  const cardsMap = new Map<string, BellTemplateCard>();
-
-  for (const slot of slots) {
-    const scope = getScopeFromSlot(slot);
-    const key = getScopeKey(scope);
-    const existing = cardsMap.get(key);
-
-    if (existing) {
-      existing.slots.push(slot);
-      continue;
-    }
-
-    cardsMap.set(key, {
-      ...scope,
-      key,
-      slots: [slot],
-    });
-  }
-
-  return Array.from(cardsMap.values())
-    .map((card) => ({
-      ...card,
-      slots: [...card.slots].sort((a, b) => a.lessonNumber - b.lessonNumber),
-    }))
-    .sort(compareCards);
-}
-
-function buildSlotBody(
-  lessonNumber: number,
-  row: EditSlotValue,
-  draft: BellTemplateDraft
-): CreateBellTemplateBody {
-  const body: CreateBellTemplateBody = {
-    scheduleType: draft.scheduleType,
-    lessonNumber,
-    startTime: inputTimeToIso(row.startTime),
-    endTime: inputTimeToIso(row.endTime),
-    secondStartTime: row.secondStartTime ? inputTimeToIso(row.secondStartTime) : null,
-    secondEndTime: row.secondEndTime ? inputTimeToIso(row.secondEndTime) : null,
-    groupId: draft.groupId,
-  };
-
-  if (draft.scheduleType === "date") {
-    body.specificDate = `${draft.specificDate}T00:00:00.000Z`;
-    body.weekdayStart = null;
-    body.weekdayEnd = null;
-  } else {
-    body.specificDate = null;
-    body.weekdayStart = draft.weekdayStart;
-    body.weekdayEnd = draft.weekdayEnd;
-  }
-
-  return body;
-}
-
-function formatCardScope(card: TemplateScope): string {
-  if (card.scheduleType === "date") {
-    return card.specificDate ? `Дата: ${card.specificDate}` : "Дата не указана";
-  }
-  return `Дни: ${getWeekdayLabel(card.weekdayStart)} - ${getWeekdayLabel(card.weekdayEnd)}`;
-}
 
 export function BellsContent() {
   const queryClient = useQueryClient();
@@ -415,15 +170,12 @@ export function BellsContent() {
                   groupId: card.groupId,
                 },
         });
-        await queryClient.invalidateQueries({ queryKey: [BELLS_QUERY_KEY] });
+        await invalidateAndRefetch(queryClient, [BELLS_QUERY_KEY]);
         if (editingCardKey === card.key) {
           resetEditor();
         }
       } catch (err) {
-        const message =
-          (isAxiosError(err) && err.response?.data?.message) ||
-          (err instanceof Error ? err.message : "Не удалось удалить шаблон звонков");
-        window.alert(message);
+        window.alert(getApiErrorMessage(err, "Не удалось удалить шаблон звонков"));
       }
     },
     [bulkDeleteMutation, editingCardKey, getGroupName, queryClient, resetEditor]
@@ -509,13 +261,10 @@ export function BellsContent() {
         }
       }
 
-      await queryClient.invalidateQueries({ queryKey: [BELLS_QUERY_KEY] });
+      await invalidateAndRefetch(queryClient, [BELLS_QUERY_KEY]);
       resetEditor();
     } catch (err) {
-      const message =
-        (isAxiosError(err) && err.response?.data?.message) ||
-        (err instanceof Error ? err.message : "Не удалось сохранить шаблон звонков");
-      window.alert(message);
+      window.alert(getApiErrorMessage(err, "Не удалось сохранить шаблон звонков"));
     }
   }, [createMutation, deleteMutation, draftCard, editingCard, queryClient, resetEditor, updateMutation]);
 
@@ -525,7 +274,7 @@ export function BellsContent() {
         className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive"
         style={{ backgroundColor: "#f8e8e9", borderColor: "#d2686a", color: "#671012" }}
       >
-        {error instanceof Error ? error.message : "Ошибка загрузки списка звонков"}
+        {getApiErrorMessage(error, "Ошибка загрузки списка звонков")}
       </div>
     );
   }
@@ -713,7 +462,7 @@ export function BellsContent() {
                 <div className="flex flex-wrap gap-1">
                   {(() => {
                     const selectedDays = getSelectedWeekdays(draftCard);
-                    return WEEKDAY_LABELS.map((item) => {
+                    return WEEKDAY_LIST.map((item) => {
                       const checked = selectedDays.includes(item.value);
                       return (
                         <button
@@ -1010,7 +759,7 @@ export function BellsContent() {
                           <div className="flex flex-wrap gap-1">
                             {(() => {
                               const selectedDays = getSelectedWeekdays(activeDraft);
-                              return WEEKDAY_LABELS.map((item) => {
+                              return WEEKDAY_LIST.map((item) => {
                                 const checked = selectedDays.includes(item.value);
                                 return (
                                   <button
