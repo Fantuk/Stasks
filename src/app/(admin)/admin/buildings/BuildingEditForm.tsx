@@ -6,14 +6,15 @@ import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
 import { Label } from "@/app/components/ui/label";
 import {
+  BUILDING_DETAIL_QUERY_KEY,
+  BUILDINGS_QUERY_KEY,
   createBuilding,
   updateBuilding,
   type BuildingListItem,
 } from "@/app/(admin)/admin/buildings/buildings-api";
+import { getApiErrorMessage } from "@/lib/api-errors";
+import { invalidateAndRefetch } from "@/lib/queryClient";
 import { DialogFooter } from "@/app/components/ui/dialog";
-
-const BUILDINGS_QUERY_KEY = "admin-buildings" as const;
-const BUILDING_DETAIL_QUERY_KEY = "admin-building-detail" as const;
 
 type BuildingEditFormProps = {
   /** Здание для редактирования; null — режим создания */
@@ -45,9 +46,7 @@ export function BuildingEditForm({
   const createMutation = useMutation({
     mutationFn: createBuilding,
     onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: [BUILDINGS_QUERY_KEY] });
-      // Явный refetch, чтобы список в UI обновился сразу после закрытия модалки
-      await queryClient.refetchQueries({ queryKey: [BUILDINGS_QUERY_KEY] });
+      await invalidateAndRefetch(queryClient, [BUILDINGS_QUERY_KEY]);
       onSuccess();
     },
   });
@@ -56,10 +55,8 @@ export function BuildingEditForm({
     mutationFn: ({ id, name: n }: { id: number; name: string }) =>
       updateBuilding(id, { name: n }),
     onSuccess: async (_, { id }) => {
-      queryClient.invalidateQueries({ queryKey: [BUILDINGS_QUERY_KEY] });
-      queryClient.invalidateQueries({ queryKey: [BUILDING_DETAIL_QUERY_KEY, id] });
-      await queryClient.refetchQueries({ queryKey: [BUILDINGS_QUERY_KEY] });
-      await queryClient.refetchQueries({ queryKey: [BUILDING_DETAIL_QUERY_KEY, id] });
+      await invalidateAndRefetch(queryClient, [BUILDINGS_QUERY_KEY]);
+      await invalidateAndRefetch(queryClient, [BUILDING_DETAIL_QUERY_KEY, id]);
       onSuccess();
     },
   });
@@ -97,7 +94,7 @@ export function BuildingEditForm({
 
   const submitError = createMutation.error ?? updateMutation.error;
   const displayError =
-    error ?? (submitError instanceof Error ? submitError.message : null);
+    error ?? (submitError != null ? getApiErrorMessage(submitError) : null);
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
