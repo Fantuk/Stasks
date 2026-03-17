@@ -1,10 +1,7 @@
-import {
-  Injectable,
-  ConflictException,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { handlePrismaUniqueConflict } from 'src/common/utils/prisma-error.utils';
 import { Building } from 'src/building/domain/entities/building.entity';
 import type {
   IBuildingRepository,
@@ -22,11 +19,7 @@ const buildingSelect = {
 export class BuildingRepository implements IBuildingRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  private mapToDomain(raw: {
-    id: number;
-    institutionId: number;
-    name: string;
-  }): Building {
+  private mapToDomain(raw: { id: number; institutionId: number; name: string }): Building {
     return Building.fromPersistence({
       id: raw.id,
       institutionId: raw.institutionId,
@@ -50,9 +43,7 @@ export class BuildingRepository implements IBuildingRepository {
     }));
   }
 
-  async create(
-    data: Omit<Building, 'id' | 'toPersistence' | 'toResponse'>,
-  ): Promise<Building> {
+  async create(data: Omit<Building, 'id' | 'toPersistence' | 'toResponse'>): Promise<Building> {
     try {
       const building = Building.create({
         institutionId: data.institutionId,
@@ -64,12 +55,11 @@ export class BuildingRepository implements IBuildingRepository {
       });
       return this.mapToDomain(saved);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          throw new ConflictException('Здание с таким именем уже существует');
-        }
-      }
-      throw new InternalServerErrorException('Ошибка при создании здания');
+      handlePrismaUniqueConflict(
+        error,
+        'Здание с таким именем уже существует',
+        'Ошибка при создании здания',
+      );
     }
   }
 
@@ -154,8 +144,7 @@ export class BuildingRepository implements IBuildingRepository {
       where.name = { contains: params.query.trim(), mode: 'insensitive' };
     }
     const total = await this.prisma.building.count({ where });
-    const skip =
-      params.page && params.limit ? (params.page - 1) * params.limit : undefined;
+    const skip = params.page && params.limit ? (params.page - 1) * params.limit : undefined;
     const take = params.limit;
     const raw = await this.prisma.building.findMany({
       where,
@@ -170,10 +159,7 @@ export class BuildingRepository implements IBuildingRepository {
     };
   }
 
-  async update(
-    id: number,
-    data: Partial<Omit<Building, 'id'>>,
-  ): Promise<Building> {
+  async update(id: number, data: Partial<Omit<Building, 'id'>>): Promise<Building> {
     try {
       const updateData = data as Prisma.BuildingUpdateInput;
       const updated = await this.prisma.building.update({
@@ -183,12 +169,11 @@ export class BuildingRepository implements IBuildingRepository {
       });
       return this.mapToDomain(updated);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          throw new ConflictException('Здание с таким именем уже существует');
-        }
-      }
-      throw new InternalServerErrorException('Ошибка при обновлении здания');
+      handlePrismaUniqueConflict(
+        error,
+        'Здание с таким именем уже существует',
+        'Ошибка при обновлении здания',
+      );
     }
   }
 

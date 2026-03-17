@@ -20,12 +20,6 @@ import { ClassroomModule } from 'src/classroom/application/classroom.module';
     },
   ],
   exports: [ScheduleService, 'ScheduleRepository'],
-  imports: [
-    BellTemplateModule,
-    GroupModule,
-    SubjectModule,
-    TeacherModule,
-    ClassroomModule,
-  ],
+  imports: [BellTemplateModule, GroupModule, SubjectModule, TeacherModule, ClassroomModule],
 })
 export class ScheduleModule {}

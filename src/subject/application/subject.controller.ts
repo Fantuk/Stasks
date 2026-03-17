@@ -14,7 +14,14 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiExtraModels, getSchemaPath } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiExtraModels,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -28,7 +35,7 @@ import {
   createSuccessResponseSchema,
 } from 'src/common/interfaces/api-response.interface';
 import { ResponseMetaDto } from 'src/common/interfaces/api-response.interface';
-import { PaginationDto } from 'src/common/dto/pagination.dto';
+import { SubjectListQueryDto } from 'src/subject/application/dto/subject-list-query.dto';
 import { SubjectResponseDto } from 'src/subject/application/dto/subject-response.dto';
 import { SubjectService } from 'src/subject/application/subject.service';
 import { CreateSubjectDto } from 'src/subject/application/dto/create-subject.dto';
@@ -36,6 +43,7 @@ import { UpdateSubjectDto } from 'src/subject/application/dto/update-subject.dto
 import { AssignTeachersDto } from 'src/subject/application/dto/assign-teachers.dto';
 import { AssignGroupsDto } from 'src/subject/application/dto/assign-groups.dto';
 import { parseIncludeOption } from 'src/common/utils/query.utils';
+import { paginatedSuccess } from 'src/common/utils/response.utils';
 import { SearchQueryDto } from 'src/common/dto/search-query.dto';
 
 @ApiTags('Subjects')
@@ -46,7 +54,7 @@ import { SearchQueryDto } from 'src/common/dto/search-query.dto';
 @Roles(Role.ADMIN, Role.MODERATOR)
 export class SubjectController {
   /** Специфичные пути (search, by-name и т.д.) должны быть объявлены выше Get(':id'). */
-  constructor(private readonly subjectService: SubjectService) { }
+  constructor(private readonly subjectService: SubjectService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -74,56 +82,47 @@ export class SubjectController {
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
-    schema: createSuccessResponseSchema(getSchemaPath(SubjectResponseDto), { withMeta: true, isArray: true }),
+    schema: createSuccessResponseSchema(getSchemaPath(SubjectResponseDto), {
+      withMeta: true,
+      isArray: true,
+    }),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async search(
-    @Query() searchDto: SearchQueryDto,
-    @GetUser() user: IAccessToken,
-  ) {
+  async search(@Query() searchDto: SearchQueryDto, @GetUser() user: IAccessToken) {
     const result = await this.subjectService.search({
       institutionId: user.institutionId,
       query: searchDto.query,
       page: searchDto.page,
       limit: searchDto.limit,
     });
-    return {
-      success: true,
-      data: result.data,
-      meta: {
-        page: result.page,
-        limit: result.limit,
-        total: result.total,
-        totalPages: result.totalPages,
-      },
-    };
+    return paginatedSuccess(result);
   }
 
   @Get()
   @ApiOperation({
     summary: 'Список предметов учреждения с пагинацией',
-    description: 'Полный список предметов. Для поиска используйте GET /subject/search.',
+    description:
+      'Полный список предметов. При указании groupId — только предметы, привязанные к группе (эквивалентно GET /group/:id/subjects). Для поиска используйте GET /subject/search.',
   })
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
-    schema: createSuccessResponseSchema(getSchemaPath(SubjectResponseDto), { withMeta: true, isArray: true }),
+    schema: createSuccessResponseSchema(getSchemaPath(SubjectResponseDto), {
+      withMeta: true,
+      isArray: true,
+    }),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async findAll(
-    @GetUser() user: IAccessToken,
-    @Query() paginationDto: PaginationDto,
-  ) {
-    const result = await this.subjectService.findByInstitutionId(
-      user.institutionId,
-      paginationDto.page,
-      paginationDto.limit,
-    );
-    return {
-      success: true,
-      data: result.data,
-      meta: { page: result.page, limit: result.limit, total: result.total, totalPages: result.totalPages },
-    };
+  async findAll(@GetUser() user: IAccessToken, @Query() queryDto: SubjectListQueryDto) {
+    const result =
+      queryDto.groupId != null
+        ? await this.subjectService.findByGroupId(queryDto.groupId, user.institutionId)
+        : await this.subjectService.findByInstitutionId(
+            user.institutionId,
+            queryDto.page,
+            queryDto.limit,
+          );
+    return paginatedSuccess(result);
   }
 
   @Get('by-name')
@@ -133,17 +132,18 @@ export class SubjectController {
     description: 'Предмет найден',
     schema: createSuccessResponseSchema(getSchemaPath(SubjectResponseDto)),
   })
-  @ApiResponse({ status: 400, description: 'Параметр name обязателен', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 400,
+    description: 'Параметр name обязателен',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async findByName(
-    @Query('name') name: string,
-    @GetUser() user: IAccessToken,
-  ) {
-    const formatedName = name.trim()
+  async findByName(@Query('name') name: string, @GetUser() user: IAccessToken) {
+    const formattedName = name.trim();
 
-    if (!formatedName) throw new BadRequestException('Параметр name обязателен')
+    if (!formattedName) throw new BadRequestException('Параметр name обязателен');
 
-    const data = await this.subjectService.findByName(formatedName, user.institutionId)
+    const data = await this.subjectService.findByName(formattedName, user.institutionId);
     return { success: true, data };
   }
 
@@ -191,10 +191,7 @@ export class SubjectController {
   @ApiResponse({ status: 200, description: 'Предмет удалён', schema: API_SUCCESS_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 404, description: 'Предмет не найден', schema: API_ERROR_RESPONSE_SCHEMA })
-  async remove(
-    @Param('id', ParseIntPipe) id: number,
-    @GetUser() user: IAccessToken,
-  ) {
+  async remove(@Param('id', ParseIntPipe) id: number, @GetUser() user: IAccessToken) {
     await this.subjectService.remove(id, user.institutionId);
     return { success: true, data: null, message: 'Предмет удалён' };
   }
@@ -213,17 +210,17 @@ export class SubjectController {
     @Body() dto: AssignTeachersDto,
     @GetUser() user: IAccessToken,
   ) {
-    const data = await this.subjectService.assignTeachers(
-      id,
-      dto.teacherIds,
-      user.institutionId,
-    );
+    const data = await this.subjectService.assignTeachers(id, dto.teacherIds, user.institutionId);
     return { success: true, data, message: 'Преподаватели привязаны к предмету' };
   }
 
   @Delete(':id/teachers/:teacherId')
   @ApiOperation({ summary: 'Отвязать преподавателя от предмета' })
-  @ApiResponse({ status: 200, description: 'Преподаватель отвязан', schema: API_SUCCESS_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 200,
+    description: 'Преподаватель отвязан',
+    schema: API_SUCCESS_RESPONSE_SCHEMA,
+  })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async unassignTeacher(
     @Param('id', ParseIntPipe) id: number,
@@ -248,11 +245,7 @@ export class SubjectController {
     @Body() dto: AssignGroupsDto,
     @GetUser() user: IAccessToken,
   ) {
-    const data = await this.subjectService.assignGroups(
-      id,
-      dto.groupIds,
-      user.institutionId,
-    );
+    const data = await this.subjectService.assignGroups(id, dto.groupIds, user.institutionId);
     return { success: true, data, message: 'Группы привязаны к предмету' };
   }
 

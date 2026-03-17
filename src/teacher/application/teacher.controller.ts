@@ -10,7 +10,14 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiExtraModels, getSchemaPath } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiExtraModels,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import { TeacherService } from './teacher.service';
 import { Role } from '@prisma/client';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -20,10 +27,17 @@ import { RolesGuard } from 'src/common/guards/roles.guard';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import type { IAccessToken } from 'src/token/application/interfaces/interfaces';
 import { ApiSuccessResponse } from 'src/common/interfaces/api-response.interface';
-import { API_ERROR_RESPONSE_SCHEMA, createSuccessResponseSchema } from 'src/common/interfaces/api-response.interface';
+import {
+  API_ERROR_RESPONSE_SCHEMA,
+  createSuccessResponseSchema,
+} from 'src/common/interfaces/api-response.interface';
 import { ITeacherResponse } from 'src/teacher/domain/entities/teacher.entity';
 import { parseIncludeOption } from 'src/common/utils/query.utils';
-import { TeacherResponseDto, TeacherSubjectSummaryDto } from 'src/teacher/application/dto/teacher-response.dto';
+import { paginatedSuccess } from 'src/common/utils/response.utils';
+import {
+  TeacherResponseDto,
+  TeacherSubjectSummaryDto,
+} from 'src/teacher/application/dto/teacher-response.dto';
 import { UserResponseDto } from 'src/user/application/dto/user-response.dto';
 import { GetTeachersQueryDto } from './dto/get-teachers-query.dto';
 import { ResponseMetaDto } from 'src/common/interfaces/api-response.interface';
@@ -34,35 +48,26 @@ import { ResponseMetaDto } from 'src/common/interfaces/api-response.interface';
 @Controller('teacher')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class TeacherController {
-  constructor(private readonly teacherService: TeacherService) { }
+  constructor(private readonly teacherService: TeacherService) {}
 
   @Get()
   @ApiOperation({ summary: 'Список преподавателей учреждения с пагинацией и поиском' })
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
-    schema: createSuccessResponseSchema(getSchemaPath(TeacherResponseDto), { withMeta: true, isArray: true }),
+    schema: createSuccessResponseSchema(getSchemaPath(TeacherResponseDto), {
+      withMeta: true,
+      isArray: true,
+    }),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async findAll(
-    @GetUser() user: IAccessToken,
-    @Query() query: GetTeachersQueryDto,
-  ) {
+  async findAll(@GetUser() user: IAccessToken, @Query() query: GetTeachersQueryDto) {
     const result = await this.teacherService.findByInstitutionId(user.institutionId, {
       page: query.page,
       limit: query.limit,
       query: query.query,
     });
-    return {
-      success: true,
-      data: result.data,
-      meta: {
-        page: result.page,
-        limit: result.limit,
-        total: result.total,
-        totalPages: result.totalPages,
-      },
-    };
+    return paginatedSuccess(result);
   }
 
   @Get(':userId')
@@ -73,19 +78,19 @@ export class TeacherController {
     schema: createSuccessResponseSchema(getSchemaPath(TeacherResponseDto)),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 404, description: 'Преподаватель не найден', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 404,
+    description: 'Преподаватель не найден',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
   async findById(
     @Param('userId', ParseIntPipe) userId: number,
     @GetUser() user: IAccessToken,
     @Query('include') include?: string,
   ): Promise<ApiSuccessResponse<ITeacherResponse>> {
     const options = parseIncludeOption(include);
-    const teacher = await this.teacherService.findByUserId(
-      userId,
-      user.institutionId,
-      options,
-    );
-    if (!teacher) throw new NotFoundException('Преподаватель не найден по id ' + userId);
+    const teacher = await this.teacherService.findByUserId(userId, user.institutionId, options);
+    if (!teacher) throw new NotFoundException('Преподаватель не найден');
     const includeUser = options?.include?.includes('user') ?? false;
     return {
       success: true,
@@ -133,10 +138,7 @@ export class TeacherController {
     @Param('userId', ParseIntPipe) userId: number,
     @GetUser() user: IAccessToken,
   ): Promise<ApiSuccessResponse<ITeacherResponse>> {
-    const teacher = await this.teacherService.removeMentoredGroup(
-      userId,
-      user.institutionId,
-    );
+    const teacher = await this.teacherService.removeMentoredGroup(userId, user.institutionId);
     return {
       success: true,
       data: teacher.toResponse(),

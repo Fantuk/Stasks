@@ -13,17 +13,11 @@ export class TokenService {
   ) {}
 
   async createRefreshToken(userId: number): Promise<RefreshToken> {
-    const expiresValue = Number(
-      this.configService.get('REFRESH_TOKEN_EXPIRES_VALUE'),
-    );
-    const expiresUnit = this.configService.get<ManipulateType>(
-      'REFRESH_TOKEN_EXPIRES_UNIT',
-    );
+    const expiresValue = Number(this.configService.get('REFRESH_TOKEN_EXPIRES_VALUE'));
+    const expiresUnit = this.configService.get<ManipulateType>('REFRESH_TOKEN_EXPIRES_UNIT');
 
     if (!expiresValue || !expiresUnit) {
-      throw new Error(
-        'REFRESH_TOKEN_EXPIRES_VALUE or REFRESH_TOKEN_EXPIRES_UNIT is not defined',
-      );
+      throw new Error('REFRESH_TOKEN_EXPIRES_VALUE or REFRESH_TOKEN_EXPIRES_UNIT is not defined');
     }
 
     const expiresIn = this.calculateExpirationDate(expiresValue, expiresUnit);
@@ -60,10 +54,7 @@ export class TokenService {
     await this.tokenRepository.deleteToken(token);
   }
 
-  private calculateExpirationDate(
-    expiresValue: number,
-    expiresUnit: ManipulateType,
-  ): Date {
+  private calculateExpirationDate(expiresValue: number, expiresUnit: ManipulateType): Date {
     return dayjs().add(expiresValue, expiresUnit).toDate();
   }
 }

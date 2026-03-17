@@ -25,7 +25,7 @@ export class StudentService {
     private readonly userService: UserService,
     @Inject(forwardRef(() => GroupService))
     private readonly groupService: GroupService,
-  ) { }
+  ) {}
 
   async create(student: ICreateStudentParams): Promise<Student> {
     this.logger.log(`Создание студента ${student.userId}`);
@@ -50,13 +50,11 @@ export class StudentService {
     const student = await this.studentRepository.findByUserId(userId, {
       includeUser,
     });
-    if (!student)return null;
+    if (!student) return null;
     if (institutionId !== undefined) {
       const user = await this.userService.findById(userId, institutionId);
       if (!user) {
-        throw new ForbiddenException(
-          'Нет доступа к студенту из другого учреждения',
-        );
+        throw new ForbiddenException('Нет доступа к студенту из другого учреждения');
       }
     }
     return student;
@@ -82,10 +80,7 @@ export class StudentService {
     if (institutionId !== undefined) {
       const filteredStudents: Student[] = [];
       for (const student of students) {
-        const user = await this.userService.findById(
-          student.userId,
-          institutionId,
-        );
+        const user = await this.userService.findById(student.userId, institutionId);
         if (user) {
           filteredStudents.push(student);
         }
@@ -96,24 +91,18 @@ export class StudentService {
     return students;
   }
 
-  async assignToGroup(
-    userId: number,
-    groupId: number,
-    institutionId?: number,
-  ): Promise<Student> {
+  async assignToGroup(userId: number, groupId: number, institutionId?: number): Promise<Student> {
     if (institutionId !== undefined) {
       const user = await this.userService.findById(userId, institutionId);
       if (!user) {
-        throw new ForbiddenException(
-          'Нет доступа к студенту из другого учреждения',
-        );
+        throw new ForbiddenException('Нет доступа к студенту из другого учреждения');
       }
     }
 
     const student = await this.findByUserId(userId);
 
     if (!student) {
-      throw new NotFoundException('Студент не найден по id ' + userId);
+      throw new NotFoundException('Студент не найден');
     }
 
     if (student.groupId === groupId) {
@@ -126,23 +115,18 @@ export class StudentService {
     return this.studentRepository.update(userId, student);
   }
 
-  async removeFromGroup(
-    userId: number,
-    institutionId?: number,
-  ): Promise<Student> {
+  async removeFromGroup(userId: number, institutionId?: number): Promise<Student> {
     if (institutionId !== undefined) {
       const user = await this.userService.findById(userId, institutionId);
       if (!user) {
-        throw new ForbiddenException(
-          'Нет доступа к студенту из другого учреждения',
-        );
+        throw new ForbiddenException('Нет доступа к студенту из другого учреждения');
       }
     }
 
     const student = await this.findByUserId(userId);
 
     if (!student) {
-      throw new NotFoundException('Студент не найден по id ' + userId);
+      throw new NotFoundException('Студент не найден');
     }
 
     if (!student.isInGroup()) {

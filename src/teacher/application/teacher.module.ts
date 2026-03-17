@@ -17,9 +17,6 @@ import { GroupModule } from 'src/group/application/group.module';
     },
   ],
   exports: [TeacherService],
-  imports: [
-    forwardRef(() => UserModule),
-    forwardRef(() => GroupModule),
-  ],
+  imports: [forwardRef(() => UserModule), forwardRef(() => GroupModule)],
 })
-export class TeacherModule { }
+export class TeacherModule {}

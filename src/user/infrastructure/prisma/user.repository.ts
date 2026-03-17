@@ -1,10 +1,6 @@
-import {
-  Injectable,
-  ConflictException,
-  InternalServerErrorException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { handlePrismaUniqueConflict } from 'src/common/utils/prisma-error.utils';
 import { User } from 'src/user/domain/entities/user.entity';
 import { ISearchUsersParams, IUserRepository } from 'src/user/domain/user-repository.interface';
 import { Prisma, Role } from '@prisma/client';
@@ -19,7 +15,7 @@ const USER_SORT_FIELDS = ['id', 'name', 'email'] as const;
 
 @Injectable()
 export class UserRepository implements IUserRepository {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
   private readonly userSelect = {
     id: true,
     institutionId: true,
@@ -57,14 +53,9 @@ export class UserRepository implements IUserRepository {
 
       return this.mapToDomain(savedUser);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          throw new ConflictException(
-            'Пользователь с таким id уже существует',
-          );
-        }
-      }
-      throw new InternalServerErrorException(
+      handlePrismaUniqueConflict(
+        error,
+        'Пользователь с таким id уже существует',
         'Произошла ошибка во время создания пользователя',
       );
     }
@@ -100,7 +91,9 @@ export class UserRepository implements IUserRepository {
     const result: IUserWithProfiles = { user };
 
     if (include?.student && 'student' in rawUser && rawUser.student)
-      result.student = mapRawToStudent(rawUser.student as Prisma.StudentGetPayload<{ include: { group: true } }>);
+      result.student = mapRawToStudent(
+        rawUser.student as Prisma.StudentGetPayload<{ include: { group: true } }>,
+      );
     if (include?.teacher && 'teacher' in rawUser && rawUser.teacher)
       result.teacher = mapRawToTeacher(
         rawUser.teacher as Prisma.TeacherGetPayload<{
@@ -124,9 +117,8 @@ export class UserRepository implements IUserRepository {
     const includeOptions = buildUserInclude(options);
     const skip = page && limit ? (page - 1) * limit : undefined;
     const take = limit;
-    const orderByField = sort && USER_SORT_FIELDS.includes(sort as (typeof USER_SORT_FIELDS)[number])
-      ? sort
-      : 'id';
+    const orderByField =
+      sort && USER_SORT_FIELDS.includes(sort as (typeof USER_SORT_FIELDS)[number]) ? sort : 'id';
     const orderBy = { [orderByField]: order } as Prisma.UserOrderByWithRelationInput;
 
     const total = await this.prisma.user.count({
@@ -150,20 +142,21 @@ export class UserRepository implements IUserRepository {
       orderBy,
     });
 
-
     const users: IUserWithProfiles[] = rawUsers.map((raw) => {
       const u = this.mapToDomain(raw as Prisma.UserGetPayload<{}>);
       const item: IUserWithProfiles = { user: u };
-      if (includeOptions?.student && 'student' in raw && raw.student) item.student =
-        mapRawToStudent(raw.student as Prisma.StudentGetPayload<{ include: { group: true } }>);
-      if (includeOptions?.teacher && 'teacher' in raw && raw.teacher) item.teacher =
-        mapRawToTeacher(
+      if (includeOptions?.student && 'student' in raw && raw.student)
+        item.student = mapRawToStudent(
+          raw.student as Prisma.StudentGetPayload<{ include: { group: true } }>,
+        );
+      if (includeOptions?.teacher && 'teacher' in raw && raw.teacher)
+        item.teacher = mapRawToTeacher(
           raw.teacher as Prisma.TeacherGetPayload<{
             include: { group: true; teacherSubjects: { include: { subject: true } } };
           }>,
         );
-      if (includeOptions?.moderator && 'moderator' in raw && raw.moderator) item.moderator =
-        mapRawToModerator(raw.moderator as Prisma.ModeratorGetPayload<{}>);
+      if (includeOptions?.moderator && 'moderator' in raw && raw.moderator)
+        item.moderator = mapRawToModerator(raw.moderator as Prisma.ModeratorGetPayload<{}>);
       return item;
     });
 
@@ -178,41 +171,42 @@ export class UserRepository implements IUserRepository {
     return rawUsers.map(this.mapToDomain);
   }
 
-  async search(params: ISearchUsersParams): Promise<{ users: IUserWithProfiles[]; total: number; }> {
+  async search(params: ISearchUsersParams): Promise<{ users: IUserWithProfiles[]; total: number }> {
     const { institutionId, query, roles, page, limit, include } = params;
     const includeOptions = buildUserInclude(include);
 
     const where: Prisma.UserWhereInput = {
-      institutionId
-    }
+      institutionId,
+    };
 
     if (query && query.trim() !== '') {
-      const searchQuery = query.trim()
+      const searchQuery = query.trim();
       where.OR = [
         { name: { contains: searchQuery, mode: 'insensitive' } },
         { surname: { contains: searchQuery, mode: 'insensitive' } },
         { patronymic: { contains: searchQuery, mode: 'insensitive' } },
         { email: { contains: searchQuery, mode: 'insensitive' } },
-      ]
+      ];
     }
 
     if (roles && roles.length > 0 && !roles.includes(Role.ADMIN)) {
       where.roles = {
-        hasSome: roles
-      }
-    } else throw new BadRequestException("Не правильная роль")
+        hasSome: roles,
+      };
+    } else throw new BadRequestException('Некорректная роль');
 
     const skip = page && limit ? (page - 1) * limit : undefined;
     const take = limit;
-    const sortField = params.sort && USER_SORT_FIELDS.includes(params.sort as (typeof USER_SORT_FIELDS)[number])
-      ? params.sort
-      : 'id';
+    const sortField =
+      params.sort && USER_SORT_FIELDS.includes(params.sort as (typeof USER_SORT_FIELDS)[number])
+        ? params.sort
+        : 'id';
     const order = params.order ?? 'asc';
     const orderBy = { [sortField]: order } as Prisma.UserOrderByWithRelationInput;
 
     const total = await this.prisma.user.count({
-      where
-    })
+      where,
+    });
 
     const rawUsers = await this.prisma.user.findMany({
       where,
@@ -229,21 +223,23 @@ export class UserRepository implements IUserRepository {
       skip,
       take,
       orderBy,
-    })
+    });
 
     const users: IUserWithProfiles[] = rawUsers.map((raw) => {
       const u = this.mapToDomain(raw as Prisma.UserGetPayload<{}>);
       const item: IUserWithProfiles = { user: u };
-      if (includeOptions?.student && 'student' in raw && raw.student) item.student =
-        mapRawToStudent(raw.student as Prisma.StudentGetPayload<{ include: { group: true } }>);
-      if (includeOptions?.teacher && 'teacher' in raw && raw.teacher) item.teacher =
-        mapRawToTeacher(
+      if (includeOptions?.student && 'student' in raw && raw.student)
+        item.student = mapRawToStudent(
+          raw.student as Prisma.StudentGetPayload<{ include: { group: true } }>,
+        );
+      if (includeOptions?.teacher && 'teacher' in raw && raw.teacher)
+        item.teacher = mapRawToTeacher(
           raw.teacher as Prisma.TeacherGetPayload<{
             include: { group: true; teacherSubjects: { include: { subject: true } } };
           }>,
         );
-      if (includeOptions?.moderator && 'moderator' in raw && raw.moderator) item.moderator =
-        mapRawToModerator(raw.moderator as Prisma.ModeratorGetPayload<{}>);
+      if (includeOptions?.moderator && 'moderator' in raw && raw.moderator)
+        item.moderator = mapRawToModerator(raw.moderator as Prisma.ModeratorGetPayload<{}>);
       return item;
     });
 
@@ -252,9 +248,7 @@ export class UserRepository implements IUserRepository {
 
   async update(id: number, data: Partial<Omit<User, 'id'>>): Promise<User> {
     const updateData: Prisma.UserUpdateInput =
-      data instanceof User
-        ? data.toPersistence()
-        : (data as Prisma.UserUpdateInput);
+      data instanceof User ? data.toPersistence() : (data as Prisma.UserUpdateInput);
 
     const updatedUser = await this.prisma.user.update({
       where: { id },
@@ -272,7 +266,7 @@ export class UserRepository implements IUserRepository {
 
 function buildUserInclude(options?: IFindUserOptions) {
   if (!options?.include?.length) return undefined;
-  const include: { student?: boolean, teacher?: boolean, moderator?: boolean } = {};
+  const include: { student?: boolean; teacher?: boolean; moderator?: boolean } = {};
   if (options.include.includes('student')) include.student = true;
   if (options.include.includes('teacher')) include.teacher = true;
   if (options.include.includes('moderator')) include.moderator = true;
@@ -304,10 +298,13 @@ function mapRawToTeacher(
     ? { id: rawGroup.id, institutionId: rawGroup.institutionId, name: rawGroup.name }
     : undefined;
   const subjects =
-    'teacherSubjects' in raw && Array.isArray((raw as { teacherSubjects?: { subject: { id: number; name: string } }[] }).teacherSubjects)
-      ? (raw as { teacherSubjects: { subject: { id: number; name: string } }[] }).teacherSubjects.map(
-          (ts) => ({ id: ts.subject.id, name: ts.subject.name }),
-        )
+    'teacherSubjects' in raw &&
+    Array.isArray(
+      (raw as { teacherSubjects?: { subject: { id: number; name: string } }[] }).teacherSubjects,
+    )
+      ? (
+          raw as { teacherSubjects: { subject: { id: number; name: string } }[] }
+        ).teacherSubjects.map((ts) => ({ id: ts.subject.id, name: ts.subject.name }))
       : undefined;
   return Teacher.fromPersistence({
     id: raw.id,

@@ -8,7 +8,14 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiExtraModels, getSchemaPath } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiExtraModels,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -36,12 +43,15 @@ import { ModeratorPermissions } from 'src/common/decorators/moderator-permission
 @ApiExtraModels(UserResponseDto, AccessTokenResponseDto)
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth('JWT')
-  @ApiOperation({ summary: 'Регистрация пользователя', description: 'Только ADMIN или модератор с правом canRegisterUsers' })
+  @ApiOperation({
+    summary: 'Регистрация пользователя',
+    description: 'Только ADMIN или модератор с правом canRegisterUsers',
+  })
   @ApiResponse({
     status: 201,
     description: 'Пользователь зарегистрирован',
@@ -51,7 +61,10 @@ export class AuthController {
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   @Roles(Role.ADMIN)
   @ModeratorPermissions('canRegisterUsers')
-  async register(@Body() registerDto: RegisterDto, @Req() req: FastifyRequest): Promise<ApiSuccessResponse<UserResponse>> {
+  async register(
+    @Body() registerDto: RegisterDto,
+    @Req() req: FastifyRequest,
+  ): Promise<ApiSuccessResponse<UserResponse>> {
     const adminInstitutionId = req.user.institutionId;
 
     const user = await this.authService.register(registerDto, adminInstitutionId);
@@ -65,14 +78,21 @@ export class AuthController {
 
   @Public()
   @Post('login')
-  @ApiOperation({ summary: 'Вход', description: 'Возвращает accessToken; refreshToken передаётся в cookie' })
+  @ApiOperation({
+    summary: 'Вход',
+    description: 'Возвращает accessToken; refreshToken передаётся в cookie',
+  })
   @ApiResponse({
     status: 200,
     description: 'Успешный вход',
     schema: createSuccessResponseSchema(getSchemaPath(AccessTokenResponseDto)),
   })
   @ApiResponse({ status: 400, description: 'Неверные данные', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 401, description: 'Неверный email или пароль', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 401,
+    description: 'Неверный email или пароль',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
   @UseInterceptors(RefreshTokenCookieInterceptor)
   async login(@Body() loginDto: LoginDto): Promise<ApiSuccessResponse<{ accessToken: string }>> {
     const tokens = await this.authService.login(loginDto);

@@ -15,7 +15,11 @@ export interface ITeacherRepository {
   findById(id: number, options?: FindTeacherOptions): Promise<Teacher | null>;
   findByUserId(userId: number, options?: FindTeacherOptions): Promise<Teacher | null>;
   findByMentoredGroupId(groupId: number, options?: FindTeacherOptions): Promise<Teacher | null>;
-  findBySubjectId(subjectId: number, options?: FindTeacherOptions, institutionId?: number): Promise<Teacher[]>;
+  findBySubjectId(
+    subjectId: number,
+    options?: FindTeacherOptions,
+    institutionId?: number,
+  ): Promise<Teacher[]>;
   findByInstitutionId(
     institutionId: number,
     params?: IFindTeachersByInstitutionParams,

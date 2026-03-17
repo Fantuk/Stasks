@@ -1,9 +1,4 @@
-import {
-  CallHandler,
-  ExecutionContext,
-  Injectable,
-  NestInterceptor,
-} from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { FastifyReply } from 'fastify';
 
@@ -30,15 +25,10 @@ export class CacheControlInterceptor implements NestInterceptor {
     }
 
     const path = request.url?.split('?')[0] ?? '';
-    const isCacheable = CACHEABLE_PATH_PREFIXES.some((prefix) =>
-      path.startsWith(prefix),
-    );
+    const isCacheable = CACHEABLE_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
 
     if (isCacheable) {
-      response.header(
-        'Cache-Control',
-        `private, max-age=${CACHE_MAX_AGE_SECONDS}`,
-      );
+      response.header('Cache-Control', `private, max-age=${CACHE_MAX_AGE_SECONDS}`);
     }
 
     return next.handle();

@@ -18,7 +18,13 @@ export class GetFloorsQueryDto {
   @Min(1, { message: 'Страница должна быть больше 0' })
   page?: number;
 
-  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 100, description: 'Записей на странице', example: 10 })
+  @ApiPropertyOptional({
+    default: 10,
+    minimum: 1,
+    maximum: 100,
+    description: 'Записей на странице',
+    example: 10,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'Лимит должен быть числом' })

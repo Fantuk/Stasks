@@ -14,6 +14,6 @@ export class SearchUsersDto extends SearchQueryDto {
 
   @ApiPropertyOptional({ description: 'Включить связанные сущности', example: 'user' })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'Параметр include должен быть строкой' })
   include?: string;
 }

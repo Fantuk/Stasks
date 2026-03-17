@@ -1,12 +1,16 @@
-import { Injectable, ConflictException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Subject } from 'src/subject/domain/entities/subject.entity';
-import { ISearchSubjectsParams, ISubjectRepository } from 'src/subject/domain/subject-repository.interface';
+import {
+  ISearchSubjectsParams,
+  ISubjectRepository,
+} from 'src/subject/domain/subject-repository.interface';
 import { Prisma } from '@prisma/client';
+import { handlePrismaUniqueConflict } from 'src/common/utils/prisma-error.utils';
 
 @Injectable()
 export class SubjectRepository implements ISubjectRepository {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   private readonly subjectSelect = {
     id: true,
@@ -27,10 +31,11 @@ export class SubjectRepository implements ISubjectRepository {
       });
       return this.mapToDomain(saved);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Предмет с таким именем уже существует');
-      }
-      throw new InternalServerErrorException('Ошибка при создании предмета');
+      handlePrismaUniqueConflict(
+        error,
+        'Предмет с таким именем уже существует',
+        'Ошибка при создании предмета',
+      );
     }
   }
 
@@ -67,6 +72,19 @@ export class SubjectRepository implements ISubjectRepository {
     return raw ? this.mapToDomain(raw) : null;
   }
 
+  /** Предметы, привязанные к группе (subjectGroups). Ограничение по institutionId. */
+  async findByGroupId(groupId: number, institutionId: number): Promise<Subject[]> {
+    const raw = await this.prisma.subject.findMany({
+      where: {
+        institutionId,
+        subjectGroups: { some: { groupId } },
+      },
+      select: this.subjectSelect,
+      orderBy: { id: 'asc' },
+    });
+    return raw.map(this.mapToDomain);
+  }
+
   async update(id: number, data: Partial<Omit<Subject, 'id'>>): Promise<Subject> {
     try {
       const updated = await this.prisma.subject.update({
@@ -76,10 +94,11 @@ export class SubjectRepository implements ISubjectRepository {
       });
       return this.mapToDomain(updated);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Предмет с таким именем уже существует');
-      }
-      throw new InternalServerErrorException('Ошибка при обновлении предмета');
+      handlePrismaUniqueConflict(
+        error,
+        'Предмет с таким именем уже существует',
+        'Ошибка при обновлении предмета',
+      );
     }
   }
 
@@ -113,7 +132,7 @@ export class SubjectRepository implements ISubjectRepository {
     });
   }
 
-  async search(params: ISearchSubjectsParams): Promise<{ subjects: Subject[]; total: number; }> {
+  async search(params: ISearchSubjectsParams): Promise<{ subjects: Subject[]; total: number }> {
     const where: Prisma.SubjectWhereInput = { institutionId: params.institutionId };
     if (params.query?.trim()) {
       where.name = { contains: params.query.trim(), mode: 'insensitive' };

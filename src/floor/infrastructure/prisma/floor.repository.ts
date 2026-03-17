@@ -1,10 +1,7 @@
-import {
-  Injectable,
-  ConflictException,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { handlePrismaUniqueConflict } from 'src/common/utils/prisma-error.utils';
 import { Floor } from 'src/floor/domain/entities/floor.entity';
 import type {
   IFloorRepository,
@@ -22,11 +19,7 @@ const floorSelect = {
 export class FloorRepository implements IFloorRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  private mapToDomain(raw: {
-    id: number;
-    buildingId: number;
-    number: number;
-  }): Floor {
+  private mapToDomain(raw: { id: number; buildingId: number; number: number }): Floor {
     return Floor.fromPersistence({
       id: raw.id,
       buildingId: raw.buildingId,
@@ -34,9 +27,7 @@ export class FloorRepository implements IFloorRepository {
     });
   }
 
-  async create(
-    data: Omit<Floor, 'id' | 'toPersistence' | 'toResponse'>,
-  ): Promise<Floor> {
+  async create(data: Omit<Floor, 'id' | 'toPersistence' | 'toResponse'>): Promise<Floor> {
     try {
       const floor = Floor.create({
         buildingId: data.buildingId,
@@ -48,14 +39,11 @@ export class FloorRepository implements IFloorRepository {
       });
       return this.mapToDomain(saved);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          throw new ConflictException(
-            'Этаж с таким номером в здании уже существует',
-          );
-        }
-      }
-      throw new InternalServerErrorException('Ошибка при создании этажа');
+      handlePrismaUniqueConflict(
+        error,
+        'Этаж с таким номером в здании уже существует',
+        'Ошибка при создании этажа',
+      );
     }
   }
 
@@ -75,9 +63,7 @@ export class FloorRepository implements IFloorRepository {
     return raw?.building?.institutionId ?? null;
   }
 
-  async findByIdWithClassrooms(
-    id: number,
-  ): Promise<FloorWithClassrooms | null> {
+  async findByIdWithClassrooms(id: number): Promise<FloorWithClassrooms | null> {
     const raw = await this.prisma.floor.findUnique({
       where: { id },
       select: {
@@ -139,8 +125,7 @@ export class FloorRepository implements IFloorRepository {
       where.number = params.number;
     }
     const total = await this.prisma.floor.count({ where });
-    const skip =
-      params.page && params.limit ? (params.page - 1) * params.limit : undefined;
+    const skip = params.page && params.limit ? (params.page - 1) * params.limit : undefined;
     const take = params.limit;
     const raw = await this.prisma.floor.findMany({
       where,
@@ -155,10 +140,7 @@ export class FloorRepository implements IFloorRepository {
     };
   }
 
-  async update(
-    id: number,
-    data: Partial<Omit<Floor, 'id'>>,
-  ): Promise<Floor> {
+  async update(id: number, data: Partial<Omit<Floor, 'id'>>): Promise<Floor> {
     try {
       const updateData: Prisma.FloorUpdateInput =
         data instanceof Floor ? data.toPersistence() : data;
@@ -169,14 +151,11 @@ export class FloorRepository implements IFloorRepository {
       });
       return this.mapToDomain(updated);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          throw new ConflictException(
-            'Этаж с таким номером в здании уже существует',
-          );
-        }
-      }
-      throw new InternalServerErrorException('Ошибка при обновлении этажа');
+      handlePrismaUniqueConflict(
+        error,
+        'Этаж с таким номером в здании уже существует',
+        'Ошибка при обновлении этажа',
+      );
     }
   }
 

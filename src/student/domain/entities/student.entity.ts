@@ -1,6 +1,6 @@
-import { Prisma } from "@prisma/client";
-import { UserResponse } from "src/user/application/interfaces/interfaces";
-import { User } from "src/user/domain/entities/user.entity";
+import { Prisma } from '@prisma/client';
+import { UserResponse } from 'src/user/application/interfaces/interfaces';
+import { User } from 'src/user/domain/entities/user.entity';
 
 /** Краткий DTO группы для вложенного ответа (например, в студенте) */
 export interface IGroupSummary {
@@ -26,7 +26,7 @@ export class Student {
     private _user?: User,
     /** Опциональные данные группы (при загрузке с include group) */
     private _group?: IGroupSummary,
-  ) { }
+  ) {}
 
   setUserData(userData: Prisma.UserGetPayload<{}>): void {
     this._user = User.fromPersistence({

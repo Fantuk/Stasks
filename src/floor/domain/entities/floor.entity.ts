@@ -9,11 +9,7 @@ export class Floor {
     return new Floor(null, params.buildingId, params.number);
   }
 
-  static fromPersistence(raw: {
-    id: number;
-    buildingId: number;
-    number: number;
-  }): Floor {
+  static fromPersistence(raw: { id: number; buildingId: number; number: number }): Floor {
     return new Floor(raw.id, raw.buildingId, raw.number);
   }
 

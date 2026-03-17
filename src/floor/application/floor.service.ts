@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Inject,
-  NotFoundException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { ensureInstitutionAccess } from 'src/common/utils/institution-access.utils';
 import { Floor } from 'src/floor/domain/entities/floor.entity';
 import type { IFloorRepository } from 'src/floor/domain/floor-repository.interface';
@@ -27,18 +22,10 @@ export class FloorService {
     return floor.toResponse();
   }
 
-  private async ensureBuildingAccess(
-    buildingId: number,
-    institutionId: number,
-  ): Promise<void> {
-    const building = await this.buildingService.findById(
-      buildingId,
-      institutionId,
-    );
+  private async ensureBuildingAccess(buildingId: number, institutionId: number): Promise<void> {
+    const building = await this.buildingService.findById(buildingId, institutionId);
     if (!building) {
-      throw new ForbiddenException(
-        'Нет доступа к зданию или здание не найдено',
-      );
+      throw new ForbiddenException('Нет доступа к зданию или здание не найдено');
     }
   }
 
@@ -79,18 +66,9 @@ export class FloorService {
     return this.mapToResponse(floor);
   }
 
-  async findByBuildingId(
-    buildingId: number,
-    institutionId: number,
-    page?: number,
-    limit?: number,
-  ) {
+  async findByBuildingId(buildingId: number, institutionId: number, page?: number, limit?: number) {
     await this.ensureBuildingAccess(buildingId, institutionId);
-    const { floors, total } = await this.floorRepository.findByBuildingId(
-      buildingId,
-      page,
-      limit,
-    );
+    const { floors, total } = await this.floorRepository.findByBuildingId(buildingId, page, limit);
     return paginate(floors.map(this.mapToResponse), total, page, limit);
   }
 

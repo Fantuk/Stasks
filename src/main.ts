@@ -1,8 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import {
-  FastifyAdapter,
-  NestFastifyApplication,
-} from '@nestjs/platform-fastify';
+import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { AppModule } from './app.module';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -38,15 +35,9 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: [process.env.CLIENT_URL || 'http://localhost:3000', "https://project-jehtt.vercel.app"],
+    origin: [process.env.CLIENT_URL || 'http://localhost:3000', 'https://project-jehtt.vercel.app'],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    allowedHeaders: [
-      'Origin',
-      'X-Requested-With',
-      'Content-Type',
-      'Accept',
-      'Authorization',
-    ],
+    allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
     credentials: true,
     optionsSuccessStatus: 200,
   });
@@ -55,17 +46,14 @@ async function bootstrap() {
     .setTitle('Stasks API')
     .setDescription(
       'API системы Stasks.\n\n' +
-      '**Формат ответов:**\n' +
-      '- Успех: `{ success: true, data, message?, meta? }`. Поле `data` — объект сущности, массив (при списках) или null. Поле `meta` присутствует только при пагинации: `page`, `limit`, `total`, `totalPages`.\n\n' +
-      '- Ошибка: `{ success: false, data: null, message, errors? }`. Массив `errors` (поле, сообщение) — при 400.\n\n' +
-      '**Авторизация:** защищённые эндпоинты требуют заголовок `Authorization: Bearer <accessToken>`.\n\n' +
-      'Типы и схемы всех полей описаны в разделе Schemas ниже.',
+        '**Формат ответов:**\n' +
+        '- Успех: `{ success: true, data, message?, meta? }`. Поле `data` — объект сущности, массив (при списках) или null. Поле `meta` присутствует только при пагинации: `page`, `limit`, `total`, `totalPages`.\n\n' +
+        '- Ошибка: `{ success: false, data: null, message, errors? }`. Массив `errors` (поле, сообщение) — при 400.\n\n' +
+        '**Авторизация:** защищённые эндпоинты требуют заголовок `Authorization: Bearer <accessToken>`.\n\n' +
+        'Типы и схемы всех полей описаны в разделе Schemas ниже.',
     )
     .setVersion('1.0')
-    .addBearerAuth(
-      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', in: 'header' },
-      'JWT',
-    )
+    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT', in: 'header' }, 'JWT')
     .addTag('Auth', 'Регистрация, вход и выход')
     .addTag('Users', 'Пользователи (поиск, CRUD, текущий пользователь)')
     .addTag('Groups', 'Группы и привязка студентов/кураторов')

@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { TokenService } from './token.service';
 import { JwtTokenService } from './jwt-token.service';
 import { UserService } from 'src/user/application/user.service';
@@ -37,8 +32,7 @@ export class AuthTokensService {
   }
 
   async refreshTokens(refreshTokenString: string): Promise<ITokens> {
-    const oldToken =
-      await this.tokenService.validateRefreshToken(refreshTokenString);
+    const oldToken = await this.tokenService.validateRefreshToken(refreshTokenString);
 
     const result = await this.userRepository.findById(oldToken.userId);
 
@@ -53,8 +47,7 @@ export class AuthTokensService {
 
     const patronymic = result.user.patronymic ?? null;
 
-    const newRefreshToken =
-      await this.tokenService.rotateRefreshToken(refreshTokenString);
+    const newRefreshToken = await this.tokenService.rotateRefreshToken(refreshTokenString);
 
     const accessToken = this.generateAccessTokenForUser({
       ...result.user.toResponse(),

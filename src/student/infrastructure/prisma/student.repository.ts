@@ -1,19 +1,21 @@
-import {
-  ConflictException,
-  Injectable,
-  InternalServerErrorException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { handlePrismaUniqueConflict } from 'src/common/utils/prisma-error.utils';
 import { Student } from 'src/student/domain/entities/student.entity';
-import { FindStudentOptions, IStudentRepository } from 'src/student/domain/student-repository.interface';
+import {
+  FindStudentOptions,
+  IStudentRepository,
+} from 'src/student/domain/student-repository.interface';
 import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class StudentRepository implements IStudentRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  private mapToDomain(raw: Prisma.StudentGetPayload<{ include?: { user: true } }>, includeUser?: boolean): Student {
+  private mapToDomain(
+    raw: Prisma.StudentGetPayload<{ include?: { user: true } }>,
+    includeUser?: boolean,
+  ): Student {
     const student = Student.fromPersistence({
       id: raw.id,
       userId: raw.userId,
@@ -35,12 +37,9 @@ export class StudentRepository implements IStudentRepository {
       });
       return this.mapToDomain(savedStudent);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          throw new ConflictException('Студент с таким id уже существует');
-        }
-      }
-      throw new InternalServerErrorException(
+      handlePrismaUniqueConflict(
+        error,
+        'Студент с таким id уже существует',
         'Произошла ошибка во время создания студента',
       );
     }

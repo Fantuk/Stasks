@@ -13,7 +13,14 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiExtraModels, getSchemaPath } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiExtraModels,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -27,6 +34,7 @@ import {
 } from 'src/common/interfaces/api-response.interface';
 import { ResponseMetaDto } from 'src/common/interfaces/api-response.interface';
 import { parseFloorIncludeOption } from 'src/common/utils/query.utils';
+import { paginatedSuccess } from 'src/common/utils/response.utils';
 import { FloorService } from 'src/floor/application/floor.service';
 import { CreateFloorDto } from 'src/floor/application/dto/create-floor.dto';
 import { FloorSearchQueryDto } from 'src/floor/application/dto/floor-search-query.dto';
@@ -54,10 +62,7 @@ export class FloorController {
   })
   @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async create(
-    @Body() createFloorDto: CreateFloorDto,
-    @GetUser() user: IAccessToken,
-  ) {
+  async create(@Body() createFloorDto: CreateFloorDto, @GetUser() user: IAccessToken) {
     const data = await this.floorService.create(createFloorDto, user.institutionId);
     return {
       success: true,
@@ -74,13 +79,13 @@ export class FloorController {
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
-    schema: createSuccessResponseSchema(getSchemaPath(FloorResponseDto), { withMeta: true, isArray: true }),
+    schema: createSuccessResponseSchema(getSchemaPath(FloorResponseDto), {
+      withMeta: true,
+      isArray: true,
+    }),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async search(
-    @Query() query: FloorSearchQueryDto,
-    @GetUser() user: IAccessToken,
-  ) {
+  async search(@Query() query: FloorSearchQueryDto, @GetUser() user: IAccessToken) {
     const result = await this.floorService.search({
       institutionId: user.institutionId,
       buildingId: query.buildingId,
@@ -88,16 +93,7 @@ export class FloorController {
       page: query.page,
       limit: query.limit,
     });
-    return {
-      success: true,
-      data: result.data,
-      meta: {
-        page: result.page,
-        limit: result.limit,
-        total: result.total,
-        totalPages: result.totalPages,
-      },
-    };
+    return paginatedSuccess(result);
   }
 
   @Get()
@@ -108,29 +104,20 @@ export class FloorController {
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
-    schema: createSuccessResponseSchema(getSchemaPath(FloorResponseDto), { withMeta: true, isArray: true }),
+    schema: createSuccessResponseSchema(getSchemaPath(FloorResponseDto), {
+      withMeta: true,
+      isArray: true,
+    }),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async findAll(
-    @Query() query: GetFloorsQueryDto,
-    @GetUser() user: IAccessToken,
-  ) {
+  async findAll(@Query() query: GetFloorsQueryDto, @GetUser() user: IAccessToken) {
     const result = await this.floorService.findByBuildingId(
       query.buildingId,
       user.institutionId,
       query.page,
       query.limit,
     );
-    return {
-      success: true,
-      data: result.data,
-      meta: {
-        page: result.page,
-        limit: result.limit,
-        total: result.total,
-        totalPages: result.totalPages,
-      },
-    };
+    return paginatedSuccess(result);
   }
 
   @Get(':id')
@@ -148,11 +135,7 @@ export class FloorController {
     @Query('include') include?: string,
   ) {
     const options = parseFloorIncludeOption(include);
-    const data = await this.floorService.findById(
-      id,
-      user.institutionId,
-      options,
-    );
+    const data = await this.floorService.findById(id, user.institutionId, options);
     if (!data) throw new NotFoundException('Этаж не найден');
     return { success: true, data };
   }
@@ -172,11 +155,7 @@ export class FloorController {
     @Body() updateFloorDto: UpdateFloorDto,
     @GetUser() user: IAccessToken,
   ) {
-    const data = await this.floorService.update(
-      id,
-      updateFloorDto,
-      user.institutionId,
-    );
+    const data = await this.floorService.update(id, updateFloorDto, user.institutionId);
     return {
       success: true,
       data,
@@ -189,10 +168,7 @@ export class FloorController {
   @ApiResponse({ status: 200, description: 'Этаж удалён', schema: API_SUCCESS_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 404, description: 'Этаж не найден', schema: API_ERROR_RESPONSE_SCHEMA })
-  async remove(
-    @Param('id', ParseIntPipe) id: number,
-    @GetUser() user: IAccessToken,
-  ) {
+  async remove(@Param('id', ParseIntPipe) id: number, @GetUser() user: IAccessToken) {
     await this.floorService.remove(id, user.institutionId);
     return { success: true, data: null, message: 'Этаж успешно удалён' };
   }

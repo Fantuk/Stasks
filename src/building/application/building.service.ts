@@ -3,10 +3,7 @@ import { ensureInstitutionAccess } from 'src/common/utils/institution-access.uti
 import { Building } from 'src/building/domain/entities/building.entity';
 import type { IBuildingRepository } from 'src/building/domain/building-repository.interface';
 import type { IBuildingFindOptions } from 'src/common/interfaces/find-options.interface';
-import {
-  shouldIncludeFloors,
-  shouldIncludeFloorsClassrooms,
-} from 'src/common/utils/query.utils';
+import { shouldIncludeFloors, shouldIncludeFloorsClassrooms } from 'src/common/utils/query.utils';
 import { paginate } from 'src/common/utils/pagination.utils';
 import { CreateBuildingDto } from 'src/building/application/dto/create-building.dto';
 import { UpdateBuildingDto } from 'src/building/application/dto/update-building.dto';
@@ -54,11 +51,7 @@ export class BuildingService {
     return this.mapToResponse(building);
   }
 
-  async findByInstitutionId(
-    institutionId: number,
-    page?: number,
-    limit?: number,
-  ) {
+  async findByInstitutionId(institutionId: number, page?: number, limit?: number) {
     const { buildings, total } = await this.buildingRepository.findByInstitutionId(
       institutionId,
       page,

@@ -13,7 +13,14 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiExtraModels, getSchemaPath } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiExtraModels,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -27,6 +34,7 @@ import {
 } from 'src/common/interfaces/api-response.interface';
 import { ResponseMetaDto } from 'src/common/interfaces/api-response.interface';
 import { parseClassroomIncludeOption } from 'src/common/utils/query.utils';
+import { paginatedSuccess } from 'src/common/utils/response.utils';
 import { ClassroomService } from 'src/classroom/application/classroom.service';
 import { ClassroomSearchQueryDto } from 'src/classroom/application/dto/classroom-search-query.dto';
 import { CreateClassroomDto } from 'src/classroom/application/dto/create-classroom.dto';
@@ -54,14 +62,8 @@ export class ClassroomController {
   })
   @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async create(
-    @Body() createClassroomDto: CreateClassroomDto,
-    @GetUser() user: IAccessToken,
-  ) {
-    const data = await this.classroomService.create(
-      createClassroomDto,
-      user.institutionId,
-    );
+  async create(@Body() createClassroomDto: CreateClassroomDto, @GetUser() user: IAccessToken) {
+    const data = await this.classroomService.create(createClassroomDto, user.institutionId);
     return {
       success: true,
       data,
@@ -77,13 +79,13 @@ export class ClassroomController {
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
-    schema: createSuccessResponseSchema(getSchemaPath(ClassroomResponseDto), { withMeta: true, isArray: true }),
+    schema: createSuccessResponseSchema(getSchemaPath(ClassroomResponseDto), {
+      withMeta: true,
+      isArray: true,
+    }),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async search(
-    @Query() query: ClassroomSearchQueryDto,
-    @GetUser() user: IAccessToken,
-  ) {
+  async search(@Query() query: ClassroomSearchQueryDto, @GetUser() user: IAccessToken) {
     const result = await this.classroomService.search({
       institutionId: user.institutionId,
       floorId: query.floorId,
@@ -91,49 +93,32 @@ export class ClassroomController {
       page: query.page,
       limit: query.limit,
     });
-    return {
-      success: true,
-      data: result.data,
-      meta: {
-        page: result.page,
-        limit: result.limit,
-        total: result.total,
-        totalPages: result.totalPages,
-      },
-    };
+    return paginatedSuccess(result);
   }
 
   @Get()
   @ApiOperation({
     summary: 'Список аудиторий этажа с пагинацией',
-    description: 'Список по floorId (обязателен). Для поиска по названию используйте GET /classroom/search.',
+    description:
+      'Список по floorId (обязателен). Для поиска по названию используйте GET /classroom/search.',
   })
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
-    schema: createSuccessResponseSchema(getSchemaPath(ClassroomResponseDto), { withMeta: true, isArray: true }),
+    schema: createSuccessResponseSchema(getSchemaPath(ClassroomResponseDto), {
+      withMeta: true,
+      isArray: true,
+    }),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async findAll(
-    @Query() query: GetClassroomsQueryDto,
-    @GetUser() user: IAccessToken,
-  ) {
+  async findAll(@Query() query: GetClassroomsQueryDto, @GetUser() user: IAccessToken) {
     const result = await this.classroomService.findByFloorId(
       query.floorId,
       user.institutionId,
       query.page,
       query.limit,
     );
-    return {
-      success: true,
-      data: result.data,
-      meta: {
-        page: result.page,
-        limit: result.limit,
-        total: result.total,
-        totalPages: result.totalPages,
-      },
-    };
+    return paginatedSuccess(result);
   }
 
   @Get(':id')
@@ -144,18 +129,18 @@ export class ClassroomController {
     schema: createSuccessResponseSchema(getSchemaPath(ClassroomResponseDto)),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 404, description: 'Аудитория не найдена', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 404,
+    description: 'Аудитория не найдена',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
   async findById(
     @Param('id', ParseIntPipe) id: number,
     @GetUser() user: IAccessToken,
     @Query('include') include?: string,
   ) {
     const options = parseClassroomIncludeOption(include);
-    const data = await this.classroomService.findById(
-      id,
-      user.institutionId,
-      options,
-    );
+    const data = await this.classroomService.findById(id, user.institutionId, options);
     if (!data) throw new NotFoundException('Аудитория не найдена');
     return { success: true, data };
   }
@@ -169,17 +154,17 @@ export class ClassroomController {
   })
   @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 404, description: 'Аудитория не найдена', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 404,
+    description: 'Аудитория не найдена',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateClassroomDto: UpdateClassroomDto,
     @GetUser() user: IAccessToken,
   ) {
-    const data = await this.classroomService.update(
-      id,
-      updateClassroomDto,
-      user.institutionId,
-    );
+    const data = await this.classroomService.update(id, updateClassroomDto, user.institutionId);
     return {
       success: true,
       data,
@@ -189,13 +174,18 @@ export class ClassroomController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Удалить аудиторию' })
-  @ApiResponse({ status: 200, description: 'Аудитория удалена', schema: API_SUCCESS_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 200,
+    description: 'Аудитория удалена',
+    schema: API_SUCCESS_RESPONSE_SCHEMA,
+  })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 404, description: 'Аудитория не найдена', schema: API_ERROR_RESPONSE_SCHEMA })
-  async remove(
-    @Param('id', ParseIntPipe) id: number,
-    @GetUser() user: IAccessToken,
-  ) {
+  @ApiResponse({
+    status: 404,
+    description: 'Аудитория не найдена',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
+  async remove(@Param('id', ParseIntPipe) id: number, @GetUser() user: IAccessToken) {
     await this.classroomService.remove(id, user.institutionId);
     return { success: true, data: null, message: 'Аудитория успешно удалена' };
   }

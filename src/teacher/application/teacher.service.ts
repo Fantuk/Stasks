@@ -28,8 +28,8 @@ export class TeacherService {
     @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
     @Inject(forwardRef(() => GroupService))
-    private readonly groupService: GroupService
-  ) { }
+    private readonly groupService: GroupService,
+  ) {}
 
   async create(teacher: ICreateTeacherParams): Promise<Teacher> {
     this.logger.log(`Создание преподавателя ${teacher.userId}`);
@@ -45,11 +45,7 @@ export class TeacherService {
     return this.teacherRepository.create(createdTeacher);
   }
 
-  async findById(
-    id: number,
-    institutionId?: number,
-    includeUser = false,
-  ): Promise<Teacher | null> {
+  async findById(id: number, institutionId?: number, includeUser = false): Promise<Teacher | null> {
     const teacher = await this.teacherRepository.findById(id, {
       includeUser,
     });
@@ -57,9 +53,7 @@ export class TeacherService {
     if (institutionId !== undefined) {
       const user = await this.userService.findById(teacher.userId, institutionId);
       if (!user) {
-        throw new ForbiddenException(
-          'Нет доступа к преподавателю из другого учреждения',
-        );
+        throw new ForbiddenException('Нет доступа к преподавателю из другого учреждения');
       }
     }
     return teacher;
@@ -82,10 +76,7 @@ export class TeacherService {
     return teacher;
   }
 
-  async findByInstitutionId(
-    institutionId: number,
-    params?: IFindTeachersByInstitutionParams,
-  ) {
+  async findByInstitutionId(institutionId: number, params?: IFindTeachersByInstitutionParams) {
     const { teachers, total } = await this.teacherRepository.findByInstitutionId(
       institutionId,
       params,
@@ -113,9 +104,7 @@ export class TeacherService {
     if (institutionId !== undefined) {
       const user = await this.userService.findById(teacher.userId, institutionId);
       if (!user) {
-        throw new ForbiddenException(
-          'Нет доступа к преподавателю из другого учреждения',
-        );
+        throw new ForbiddenException('Нет доступа к преподавателю из другого учреждения');
       }
     }
     return teacher;
@@ -126,9 +115,13 @@ export class TeacherService {
     institutionId?: number,
     includeUser = false,
   ): Promise<Teacher[]> {
-    const teachers = await this.teacherRepository.findBySubjectId(subjectId, {
-      includeUser,
-    }, institutionId);
+    const teachers = await this.teacherRepository.findBySubjectId(
+      subjectId,
+      {
+        includeUser,
+      },
+      institutionId,
+    );
     const filtered: Teacher[] = [];
     for (const t of teachers) {
       const user = await this.userService.findById(t.userId, institutionId);
@@ -145,16 +138,14 @@ export class TeacherService {
     if (institutionId !== undefined) {
       const user = await this.userService.findById(userId, institutionId);
       if (!user) {
-        throw new ForbiddenException(
-          'Нет доступа к преподавателю из другого учреждения',
-        );
+        throw new ForbiddenException('Нет доступа к преподавателю из другого учреждения');
       }
     }
 
     const teacher = await this.teacherRepository.findByUserId(userId);
 
     if (!teacher) {
-      throw new NotFoundException('Преподаватель не найден по id' + userId);
+      throw new NotFoundException('Преподаватель не найден');
     }
 
     await this.validateGroupAvailability(groupId, institutionId);
@@ -163,23 +154,18 @@ export class TeacherService {
     return this.teacherRepository.update(userId, teacher);
   }
 
-  async removeMentoredGroup(
-    userId: number,
-    institutionId?: number,
-  ): Promise<Teacher> {
+  async removeMentoredGroup(userId: number, institutionId?: number): Promise<Teacher> {
     if (institutionId !== undefined) {
       const user = await this.userService.findById(userId, institutionId);
       if (!user) {
-        throw new ForbiddenException(
-          'Нет доступа к преподавателю из другого учреждения',
-        );
+        throw new ForbiddenException('Нет доступа к преподавателю из другого учреждения');
       }
     }
 
     const teacher = await this.teacherRepository.findByUserId(userId);
 
     if (!teacher) {
-      throw new NotFoundException('Преподаватель не найден по id' + userId);
+      throw new NotFoundException('Преподаватель не найден');
     }
 
     teacher.removeMentoredGroup();
@@ -206,7 +192,7 @@ export class TeacherService {
     const teacher = await this.teacherRepository.findByUserId(userId);
 
     if (!teacher) {
-      this.logger.warn('Преподаватель не найден по id ' + userId);
+      this.logger.warn('Преподаватель не найден по id ' + userId);
       return;
     }
 

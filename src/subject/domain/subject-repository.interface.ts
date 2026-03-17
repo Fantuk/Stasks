@@ -16,12 +16,17 @@ export interface ISubjectRepository {
     limit?: number,
   ): Promise<{ subjects: Subject[]; total: number }>;
   findByName(name: string, institutionId: number): Promise<Subject | null>;
+  /** Предметы, привязанные к группе (для расписания по группе). */
+  findByGroupId(groupId: number, institutionId: number): Promise<Subject[]>;
   update(id: number, data: Partial<Omit<Subject, 'id'>>): Promise<Subject>;
   remove(id: number): Promise<void>;
 
-  search(params: ISearchSubjectsParams): Promise<{ subjects: Subject[]; total: number }>
-  findExistingGroupsBySubject(subjectId: number, groupIds: number[]): Promise<{name: string}[]>
-  findExistingTeachersBySubject(subjectId: number, teacherIds: number[]): Promise<{name: string}[]> 
+  search(params: ISearchSubjectsParams): Promise<{ subjects: Subject[]; total: number }>;
+  findExistingGroupsBySubject(subjectId: number, groupIds: number[]): Promise<{ name: string }[]>;
+  findExistingTeachersBySubject(
+    subjectId: number,
+    teacherIds: number[],
+  ): Promise<{ name: string }[]>;
 
   assignTeachers(subjectId: number, teacherIds: number[]): Promise<void>;
   unassignTeacher(subjectId: number, teacherId: number): Promise<void>;

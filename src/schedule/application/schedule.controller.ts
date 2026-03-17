@@ -32,6 +32,7 @@ import {
   createSuccessResponseSchema,
 } from 'src/common/interfaces/api-response.interface';
 import { ResponseMetaDto } from 'src/common/interfaces/api-response.interface';
+import { paginatedSuccess } from 'src/common/utils/response.utils';
 import { ScheduleService } from 'src/schedule/application/schedule.service';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
@@ -59,11 +60,12 @@ export class ScheduleController {
   @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 404, description: 'Ресурс не найден', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 409, description: 'Конфликт (аудитория или учитель заняты)', schema: API_ERROR_RESPONSE_SCHEMA })
-  async create(
-    @Body() dto: CreateScheduleDto,
-    @GetUser() user: IAccessToken,
-  ) {
+  @ApiResponse({
+    status: 409,
+    description: 'Конфликт (аудитория или учитель заняты)',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
+  async create(@Body() dto: CreateScheduleDto, @GetUser() user: IAccessToken) {
     const data = await this.scheduleService.create(dto, user.institutionId);
     return {
       success: true,
@@ -84,11 +86,12 @@ export class ScheduleController {
   @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 404, description: 'Ресурс не найден', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 409, description: 'Конфликт по одной из дат', schema: API_ERROR_RESPONSE_SCHEMA })
-  async bulkCreate(
-    @Body() dto: BulkCreateScheduleDto,
-    @GetUser() user: IAccessToken,
-  ) {
+  @ApiResponse({
+    status: 409,
+    description: 'Конфликт по одной из дат',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
+  async bulkCreate(@Body() dto: BulkCreateScheduleDto, @GetUser() user: IAccessToken) {
     const data = await this.scheduleService.bulkCreate(dto, user.institutionId);
     return {
       success: true,
@@ -102,13 +105,13 @@ export class ScheduleController {
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
-    schema: createSuccessResponseSchema(getSchemaPath(ScheduleResponseDto), { withMeta: true, isArray: true }),
+    schema: createSuccessResponseSchema(getSchemaPath(ScheduleResponseDto), {
+      withMeta: true,
+      isArray: true,
+    }),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async findMany(
-    @Query() query: ScheduleQueryDto,
-    @GetUser() user: IAccessToken,
-  ) {
+  async findMany(@Query() query: ScheduleQueryDto, @GetUser() user: IAccessToken) {
     const result = await this.scheduleService.findMany(user.institutionId, {
       groupId: query.groupId,
       teacherId: query.teacherId,
@@ -119,16 +122,7 @@ export class ScheduleController {
       limit: query.limit,
       expand: query.expand,
     });
-    return {
-      success: true,
-      data: result.data,
-      meta: {
-        page: result.page,
-        limit: result.limit,
-        total: result.total,
-        totalPages: result.totalPages,
-      },
-    };
+    return paginatedSuccess(result);
   }
 
   @Get(':id')
@@ -139,7 +133,11 @@ export class ScheduleController {
     schema: createSuccessResponseSchema(getSchemaPath(ScheduleResponseDto)),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 404, description: 'Занятие не найдено', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 404,
+    description: 'Занятие не найдено',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
   async findById(
     @Param('id', ParseIntPipe) id: number,
     @GetUser() user: IAccessToken,
@@ -160,8 +158,16 @@ export class ScheduleController {
   })
   @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 404, description: 'Занятие не найдено', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 409, description: 'Конфликт (аудитория или учитель заняты)', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 404,
+    description: 'Занятие не найдено',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Конфликт (аудитория или учитель заняты)',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateScheduleDto,
@@ -180,11 +186,12 @@ export class ScheduleController {
   @ApiOperation({ summary: 'Удалить занятие' })
   @ApiResponse({ status: 200, description: 'Занятие удалено' })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 404, description: 'Занятие не найдено', schema: API_ERROR_RESPONSE_SCHEMA })
-  async remove(
-    @Param('id', ParseIntPipe) id: number,
-    @GetUser() user: IAccessToken,
-  ) {
+  @ApiResponse({
+    status: 404,
+    description: 'Занятие не найдено',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
+  async remove(@Param('id', ParseIntPipe) id: number, @GetUser() user: IAccessToken) {
     await this.scheduleService.remove(id, user.institutionId);
     return { success: true, data: null, message: 'Занятие удалено' };
   }

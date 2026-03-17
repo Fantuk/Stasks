@@ -10,7 +10,11 @@ import { ConfigService } from '@nestjs/config';
 import { UpdateUserDto, UpdateUserDtoLike } from './dto/update-user.dto';
 import { hash, genSalt, compare } from 'bcrypt';
 import { User } from 'src/user/domain/entities/user.entity';
-import type { ISearchUsersParams, IUserRepository, IUserWithProfiles } from 'src/user/domain/user-repository.interface';
+import type {
+  ISearchUsersParams,
+  IUserRepository,
+  IUserWithProfiles,
+} from 'src/user/domain/user-repository.interface';
 import { ModeratorService } from 'src/moderator/application/moderator.service';
 import { TeacherService } from 'src/teacher/application/teacher.service';
 import { StudentService } from 'src/student/application/student.service';
@@ -36,7 +40,7 @@ export class UserService {
     private readonly studentService: StudentService,
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   private mapToResponse(user: User) {
     return user.toResponse();
@@ -138,11 +142,8 @@ export class UserService {
     return paginate(data, total, page, limit);
   }
 
-  async findByIdWithRoleData(
-    userId: number,
-    institutionId?: number,
-  ): Promise<IFullUser> {
-    const data = await this.findById(userId, institutionId);  // UserWithProfilesResponse | null
+  async findByIdWithRoleData(userId: number, institutionId?: number): Promise<IFullUser> {
+    const data = await this.findById(userId, institutionId); // UserWithProfilesResponse | null
 
     if (!data) {
       throw new NotFoundException('Пользователь не найден');
@@ -205,34 +206,21 @@ export class UserService {
     await this.userRepository.update(userId, { password: hashedPassword });
   }
 
-  async update(
-    id: number,
-    updateUserDto: UpdateUserDtoLike,
-    institutionId?: number,
-  ) {
+  async update(id: number, updateUserDto: UpdateUserDtoLike, institutionId?: number) {
     const result = await this.userRepository.findById(id);
     if (!result) {
       throw new NotFoundException('Пользователь не найден');
     }
     const existingUser = result.user;
 
-    if (
-      institutionId !== undefined &&
-      existingUser.institutionId !== institutionId
-    ) {
-      throw new ForbiddenException(
-        'Нет доступа к обновлению пользователя из другого учреждения',
-      );
+    if (institutionId !== undefined && existingUser.institutionId !== institutionId) {
+      throw new ForbiddenException('Нет доступа к обновлению пользователя из другого учреждения');
     }
 
     if (updateUserDto.email && updateUserDto.email !== existingUser.email) {
-      const userWithEmail = await this.userRepository.findByEmail(
-        updateUserDto.email,
-      );
+      const userWithEmail = await this.userRepository.findByEmail(updateUserDto.email);
       if (userWithEmail && userWithEmail.id !== id) {
-        throw new ConflictException(
-          'Пользователь с таким email уже существует',
-        );
+        throw new ConflictException('Пользователь с таким email уже существует');
       }
     }
 
@@ -245,13 +233,8 @@ export class UserService {
     if (!result) {
       throw new NotFoundException('Пользователь не найден');
     }
-    if (
-      institutionId !== undefined &&
-      result.user.institutionId !== institutionId
-    ) {
-      throw new ForbiddenException(
-        'Нет доступа к пользователю из другого учреждения',
-      );
+    if (institutionId !== undefined && result.user.institutionId !== institutionId) {
+      throw new ForbiddenException('Нет доступа к пользователю из другого учреждения');
     }
     await this.userRepository.remove(id);
   }
@@ -322,7 +305,7 @@ export class UserService {
     }
 
     if (!user.roles.includes(role)) {
-      throw new BadRequestException(`Пользователь не имеет роли ${role}`);
+      throw new BadRequestException('У пользователя нет такой роли');
     }
 
     if (user.roles.length === 1) {
@@ -331,11 +314,11 @@ export class UserService {
 
     return this.prisma.$transaction(async (tx) => {
       if (role === Role.MODERATOR) {
-        await tx.moderator.delete({ where: { userId } }).catch(() => { });
+        await tx.moderator.delete({ where: { userId } }).catch(() => {});
       } else if (role === Role.TEACHER) {
-        await tx.teacher.delete({ where: { userId } }).catch(() => { });
+        await tx.teacher.delete({ where: { userId } }).catch(() => {});
       } else if (role === Role.STUDENT) {
-        await tx.student.delete({ where: { userId } }).catch(() => { });
+        await tx.student.delete({ where: { userId } }).catch(() => {});
       }
 
       const updatedRoles = user.roles.filter((r) => r !== role);
@@ -347,9 +330,7 @@ export class UserService {
 
   private validateRoles(roles: Role[]): void {
     if (roles.length === 0) {
-      throw new BadRequestException(
-        'У пользователя должна быть хотя бы одна роль',
-      );
+      throw new BadRequestException('У пользователя должна быть хотя бы одна роль');
     }
 
     for (const [conflictRole1, conflictRole2] of this.roleConflicts) {

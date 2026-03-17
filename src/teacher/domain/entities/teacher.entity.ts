@@ -36,7 +36,7 @@ export class Teacher {
     private _mentoredGroup?: IGroupSummary,
     /** Опциональный список предметов (при загрузке с teacherSubjects) */
     private _subjects?: ISubjectSummary[],
-  ) { }
+  ) {}
 
   setUserData(userData: Prisma.UserGetPayload<{}>): void {
     this._user = User.fromPersistence({
@@ -56,10 +56,7 @@ export class Teacher {
     return this._user ?? undefined;
   }
 
-  static create(params: {
-    userId: number;
-    mentoredGroupId: number | null;
-  }): Teacher {
+  static create(params: { userId: number; mentoredGroupId: number | null }): Teacher {
     return new Teacher(null, params.userId, params.mentoredGroupId);
   }
 
@@ -73,7 +70,14 @@ export class Teacher {
     const mentoredGroup: IGroupSummary | undefined = raw.group
       ? { id: raw.group.id, institutionId: raw.group.institutionId, name: raw.group.name }
       : undefined;
-    return new Teacher(raw.id, raw.userId, raw.mentoredGroupId, undefined, mentoredGroup, raw.subjects);
+    return new Teacher(
+      raw.id,
+      raw.userId,
+      raw.mentoredGroupId,
+      undefined,
+      mentoredGroup,
+      raw.subjects,
+    );
   }
 
   assignMentoredGroup(groupId: number): void {

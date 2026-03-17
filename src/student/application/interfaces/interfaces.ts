@@ -1,5 +1,5 @@
 export interface ICreateStudentParams {
   userId: number;
-  institutionId?: number
+  institutionId?: number;
   groupId?: number | null;
 }

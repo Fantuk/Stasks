@@ -4,7 +4,11 @@ import { Type } from 'class-transformer';
 
 /** DTO привязки преподавателей к предмету */
 export class AssignTeachersDto {
-  @ApiProperty({ example: [1, 2], type: [Number], description: 'ID преподавателей (teacher userId)' })
+  @ApiProperty({
+    example: [1, 2],
+    type: [Number],
+    description: 'ID преподавателей (teacher userId)',
+  })
   @IsArray()
   @ArrayMinSize(1, { message: 'Укажите хотя бы одного преподавателя' })
   @IsInt({ each: true })

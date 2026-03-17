@@ -1,6 +1,6 @@
-import { User } from "src/user/domain/entities/user.entity";
-import { Prisma } from "@prisma/client";
-import { UserResponse } from "src/user/application/interfaces/interfaces";
+import { User } from 'src/user/domain/entities/user.entity';
+import { Prisma } from '@prisma/client';
+import { UserResponse } from 'src/user/application/interfaces/interfaces';
 
 export interface IModeratorAccessRights {
   [key: string]: boolean | undefined;
@@ -21,8 +21,7 @@ export class Moderator {
     public readonly userId: number,
     public accessRights: IModeratorAccessRights,
     private _user?: User,
-  ) { }
-
+  ) {}
 
   setUserData(userData: Prisma.UserGetPayload<{}>): void {
     this._user = User.fromPersistence({
@@ -42,10 +41,7 @@ export class Moderator {
     return this._user ?? undefined;
   }
 
-  static create(params: {
-    userId: number;
-    accessRights?: IModeratorAccessRights;
-  }): Moderator {
+  static create(params: { userId: number; accessRights?: IModeratorAccessRights }): Moderator {
     return new Moderator(null, params.userId, params.accessRights || {});
   }
 

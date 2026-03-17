@@ -11,10 +11,7 @@ import type {
   IModeratorRepository,
   IFindModeratorsByInstitutionParams,
 } from 'src/moderator/domain/moderator-repository.interface';
-import {
-  IModeratorAccessRights,
-  Moderator,
-} from 'src/moderator/domain/entities/moderator.entity';
+import { IModeratorAccessRights, Moderator } from 'src/moderator/domain/entities/moderator.entity';
 import { ICreateModeratorParams } from './interfaces/interfaces';
 import { UserService } from 'src/user/application/user.service';
 import { IFindOneOptions } from 'src/common/interfaces/find-options.interface';
@@ -28,14 +25,12 @@ export class ModeratorService {
     private readonly moderatorRepository: IModeratorRepository,
     @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
-  ) { }
+  ) {}
 
   async create(moderator: ICreateModeratorParams): Promise<Moderator> {
     const user = await this.userService.findById(moderator.userId);
     if (!user) {
-      throw new NotFoundException(
-        'Пользователь не найден по id ' + moderator.userId,
-      );
+      throw new NotFoundException('Пользователь не найден');
     }
 
     const existingModerator = await this.findByUserId(moderator.userId);
@@ -48,10 +43,7 @@ export class ModeratorService {
     return this.moderatorRepository.create(createdModerator);
   }
 
-  async findByInstitutionId(
-    institutionId: number,
-    params?: IFindModeratorsByInstitutionParams,
-  ) {
+  async findByInstitutionId(institutionId: number, params?: IFindModeratorsByInstitutionParams) {
     const { moderators, total } = await this.moderatorRepository.findByInstitutionId(
       institutionId,
       params,
@@ -80,9 +72,7 @@ export class ModeratorService {
     if (institutionId !== undefined) {
       const user = await this.userService.findById(userId, institutionId);
       if (!user) {
-        throw new ForbiddenException(
-          'Нет доступа к модератору из другого учреждения',
-        );
+        throw new ForbiddenException('Нет доступа к модератору из другого учреждения');
       }
     }
     return moderator;
@@ -96,19 +86,15 @@ export class ModeratorService {
     if (institutionId !== undefined) {
       const user = await this.userService.findById(userId, institutionId);
       if (!user) {
-        throw new ForbiddenException(
-          'Нет доступа к модератору из другого учреждения',
-        );
+        throw new ForbiddenException('Нет доступа к модератору из другого учреждения');
       }
     }
 
     const moderator = await this.moderatorRepository.findByUserId(userId);
     if (!moderator) {
-      throw new NotFoundException('Модератор не найден по id ' + userId);
+      throw new NotFoundException('Модератор не найден');
     }
-    this.logger.log(
-      `Обновление прав модератора ${userId} на ${JSON.stringify(accessRights)}`,
-    );
+    this.logger.log(`Обновление прав модератора ${userId} на ${JSON.stringify(accessRights)}`);
     moderator.updateAccessRights(accessRights);
     return this.moderatorRepository.update(userId, moderator);
   }
@@ -121,9 +107,7 @@ export class ModeratorService {
     if (institutionId !== undefined) {
       const user = await this.userService.findById(userId, institutionId);
       if (!user) {
-        throw new ForbiddenException(
-          'Нет доступа к модератору из другого учреждения',
-        );
+        throw new ForbiddenException('Нет доступа к модератору из другого учреждения');
       }
     }
 
@@ -137,7 +121,7 @@ export class ModeratorService {
   async remove(userId: number): Promise<void> {
     const moderator = await this.moderatorRepository.findByUserId(userId);
     if (!moderator) {
-      this.logger.warn('Модератор не найден по id ' + userId);
+      this.logger.warn('Модератор не найден по id ' + userId);
       return;
     }
 

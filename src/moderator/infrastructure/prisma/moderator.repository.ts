@@ -1,14 +1,7 @@
-import {
-  ConflictException,
-  Injectable,
-  InternalServerErrorException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import {
-  IModeratorAccessRights,
-  Moderator,
-} from 'src/moderator/domain/entities/moderator.entity';
+import { handlePrismaUniqueConflict } from 'src/common/utils/prisma-error.utils';
+import { IModeratorAccessRights, Moderator } from 'src/moderator/domain/entities/moderator.entity';
 import {
   FindModeratorOptions,
   IFindModeratorsByInstitutionParams,
@@ -18,9 +11,12 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ModeratorRepository implements IModeratorRepository {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
-  private mapToDomain(raw: Prisma.ModeratorGetPayload<{ include?: { user: true } }>, includeUser?: boolean): Moderator {
+  private mapToDomain(
+    raw: Prisma.ModeratorGetPayload<{ include?: { user: true } }>,
+    includeUser?: boolean,
+  ): Moderator {
     const moderator = Moderator.fromPersistence({
       id: raw.id,
       userId: raw.userId,
@@ -42,12 +38,9 @@ export class ModeratorRepository implements IModeratorRepository {
       });
       return this.mapToDomain(savedModerator);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          throw new ConflictException('Пользователь с таким id уже существует');
-        }
-      }
-      throw new InternalServerErrorException(
+      handlePrismaUniqueConflict(
+        error,
+        'Пользователь с таким id уже существует',
         'Произошла ошибка во время создания модератора',
       );
     }
@@ -115,12 +108,10 @@ export class ModeratorRepository implements IModeratorRepository {
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2025') {
-          throw new NotFoundException(`Модератор с userId ${userId} не найден`);
+          throw new NotFoundException('Модератор не найден');
         }
       }
-      throw new InternalServerErrorException(
-        'Произошла ошибка во время обновления модератора',
-      );
+      throw new InternalServerErrorException('Произошла ошибка во время обновления модератора');
     }
   }
 
@@ -130,12 +121,10 @@ export class ModeratorRepository implements IModeratorRepository {
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2025') {
-          throw new NotFoundException(`Модератор с userId ${userId} не найден`);
+          throw new NotFoundException('Модератор не найден');
         }
       }
-      throw new InternalServerErrorException(
-        'Произошла ошибка во время удаления модератора',
-      );
+      throw new InternalServerErrorException('Произошла ошибка во время удаления модератора');
     }
   }
 }

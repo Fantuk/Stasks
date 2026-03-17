@@ -29,10 +29,7 @@ export function isBellTemplateApplicableForDate(
     return isSameCalendarDay(template.specificDate, date);
   }
   // weekday
-  if (
-    template.weekdayStart == null ||
-    template.weekdayEnd == null
-  ) return false;
+  if (template.weekdayStart == null || template.weekdayEnd == null) return false;
   const weekday = getIsoWeekday(date);
   return weekday >= template.weekdayStart && weekday <= template.weekdayEnd;
 }

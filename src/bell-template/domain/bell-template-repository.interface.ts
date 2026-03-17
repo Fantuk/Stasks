@@ -48,7 +48,9 @@ export interface IBellTemplateRepository {
   ): Promise<BellTemplate[]>;
 
   /** Найти шаблоны по параметрам (с фильтрацией и пагинацией) */
-  findByInstitutionId(params: IBellTemplateFindParams): Promise<{ templates: BellTemplate[]; total: number }>;
+  findByInstitutionId(
+    params: IBellTemplateFindParams,
+  ): Promise<{ templates: BellTemplate[]; total: number }>;
 
   /** Обновить шаблон */
   update(id: number, data: Partial<Omit<BellTemplate, 'id'>>): Promise<BellTemplate>;

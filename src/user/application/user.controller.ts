@@ -13,7 +13,14 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiExtraModels, getSchemaPath } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiExtraModels,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -48,7 +55,7 @@ import { parseUserIncludeOption } from 'src/common/utils/query.utils';
 @Roles(Role.ADMIN, Role.MODERATOR)
 export class UserController {
   /** Специфичные пути (search, me и т.д.) должны быть объявлены выше Get(':id'). */
-  constructor(private readonly userService: UserService) { }
+  constructor(private readonly userService: UserService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -76,12 +83,16 @@ export class UserController {
   @Get('search')
   @ApiOperation({
     summary: 'Поиск пользователей по email/имени с пагинацией',
-    description: 'Поиск по строке query и фильтр по роли. Для полного списка без поиска используйте GET /users.',
+    description:
+      'Поиск по строке query и фильтр по роли. Для полного списка без поиска используйте GET /users.',
   })
   @ApiResponse({
     status: 200,
     description: 'Список пользователей и meta (page, limit, total, totalPages)',
-    schema: createSuccessResponseSchema(getSchemaPath(UserResponseDto), { withMeta: true, isArray: true }),
+    schema: createSuccessResponseSchema(getSchemaPath(UserResponseDto), {
+      withMeta: true,
+      isArray: true,
+    }),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async findByEmail(
@@ -109,20 +120,27 @@ export class UserController {
         page: foundedUsers.page,
         limit: foundedUsers.limit,
         total: foundedUsers.total,
-        totalPages: foundedUsers.totalPages
+        totalPages: foundedUsers.totalPages,
       },
     };
   }
 
   @Get('me')
-  @ApiOperation({ summary: 'Текущий пользователь', description: 'Данные авторизованного пользователя' })
+  @ApiOperation({
+    summary: 'Текущий пользователь',
+    description: 'Данные авторизованного пользователя',
+  })
   @ApiResponse({
     status: 200,
     description: 'Данные пользователя',
     schema: createSuccessResponseSchema(getSchemaPath(UserResponseDto)),
   })
   @ApiResponse({ status: 401, description: 'Не авторизован', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 404, description: 'Пользователь не найден', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 404,
+    description: 'Пользователь не найден',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
   @Roles()
   async getMe(
     @GetUser() user: IAccessToken,
@@ -137,11 +155,26 @@ export class UserController {
   }
 
   @Patch('me/password')
-  @ApiOperation({ summary: 'Сменить пароль', description: 'Текущий пользователь меняет пароль по текущему и новому' })
-  @ApiResponse({ status: 200, description: 'Пароль успешно изменён', schema: API_SUCCESS_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 400, description: 'Ошибка валидации или неверный текущий пароль', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiOperation({
+    summary: 'Сменить пароль',
+    description: 'Текущий пользователь меняет пароль по текущему и новому',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Пароль успешно изменён',
+    schema: API_SUCCESS_RESPONSE_SCHEMA,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Ошибка валидации или неверный текущий пароль',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
   @ApiResponse({ status: 401, description: 'Не авторизован', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 404, description: 'Пользователь не найден', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 404,
+    description: 'Пользователь не найден',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
   @Roles()
   async updateMyPassword(
     @GetUser() user: IAccessToken,
@@ -159,7 +192,10 @@ export class UserController {
   }
 
   @Patch('me')
-  @ApiOperation({ summary: 'Обновить свои данные', description: 'Текущий пользователь может изменить ФИО и email' })
+  @ApiOperation({
+    summary: 'Обновить свои данные',
+    description: 'Текущий пользователь может изменить ФИО и email',
+  })
   @ApiResponse({
     status: 200,
     description: 'Данные обновлены',
@@ -167,7 +203,11 @@ export class UserController {
   })
   @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 401, description: 'Не авторизован', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 404, description: 'Пользователь не найден', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 404,
+    description: 'Пользователь не найден',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
   @Roles()
   async updateMe(
     @GetUser() user: IAccessToken,
@@ -182,12 +222,16 @@ export class UserController {
   @Get()
   @ApiOperation({
     summary: 'Список пользователей учреждения с пагинацией',
-    description: 'Полный список пользователей учреждения (без поиска по строке). Для поиска по email/имени используйте GET /users/search.',
+    description:
+      'Полный список пользователей учреждения (без поиска по строке). Для поиска по email/имени используйте GET /users/search.',
   })
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
-    schema: createSuccessResponseSchema(getSchemaPath(UserResponseDto), { withMeta: true, isArray: true }),
+    schema: createSuccessResponseSchema(getSchemaPath(UserResponseDto), {
+      withMeta: true,
+      isArray: true,
+    }),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   async findAll(
@@ -221,7 +265,11 @@ export class UserController {
     schema: createSuccessResponseSchema(getSchemaPath(UserResponseDto)),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 404, description: 'Пользователь не найден', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 404,
+    description: 'Пользователь не найден',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
   async findById(
     @Param('id', ParseIntPipe) id: number,
     @GetUser() user: IAccessToken,
@@ -242,7 +290,11 @@ export class UserController {
   })
   @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 404, description: 'Пользователь не найден', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 404,
+    description: 'Пользователь не найден',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto,
@@ -253,13 +305,17 @@ export class UserController {
     return {
       success: true,
       data: updatedUser,
-      message: "Пользователь успешно обновлен"
-    }
+      message: 'Пользователь успешно обновлен',
+    };
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Удалить пользователя', description: 'Требуется право canDeleteUsers' })
-  @ApiResponse({ status: 200, description: 'Пользователь удалён (data: null)', schema: API_SUCCESS_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 200,
+    description: 'Пользователь удалён (data: null)',
+    schema: API_SUCCESS_RESPONSE_SCHEMA,
+  })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   @ModeratorPermissions('canDeleteUsers')
   async remove(

@@ -13,7 +13,15 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiExtraModels, getSchemaPath, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiExtraModels,
+  getSchemaPath,
+  ApiPropertyOptional,
+} from '@nestjs/swagger';
 import { Role, ScheduleType } from '@prisma/client';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -28,6 +36,7 @@ import {
 } from 'src/common/interfaces/api-response.interface';
 import { ResponseMetaDto } from 'src/common/interfaces/api-response.interface';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
+import { paginatedSuccess } from 'src/common/utils/response.utils';
 import { BellTemplateService } from './bell-template.service';
 import { CreateBellTemplateDto } from './dto/create-bell-template.dto';
 import { UpdateBellTemplateDto } from './dto/update-bell-template.dto';
@@ -39,7 +48,12 @@ import { Type } from 'class-transformer';
 /** DTO для query-параметров фильтрации списка шаблонов */
 class BellTemplateQueryDto extends PaginationDto {
   // Переопределяем limit: для списка шаблонов звонков разрешаем до 500 (в базе PaginationDto — max 100)
-  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 500, description: 'Записей на странице' })
+  @ApiPropertyOptional({
+    default: 10,
+    minimum: 1,
+    maximum: 500,
+    description: 'Записей на странице',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'Лимит должен быть числом' })
@@ -80,15 +94,16 @@ export class BellTemplateController {
   })
   @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 409, description: 'Конфликт: шаблон с такими параметрами уже существует', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 409,
+    description: 'Конфликт: шаблон с такими параметрами уже существует',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
   async create(
     @Body() createBellTemplateDto: CreateBellTemplateDto,
     @GetUser() user: IAccessToken,
   ): Promise<ApiSuccessResponse<BellTemplateResponseDto>> {
-    const data = await this.bellTemplateService.create(
-      createBellTemplateDto,
-      user.institutionId,
-    );
+    const data = await this.bellTemplateService.create(createBellTemplateDto, user.institutionId);
     return {
       success: true,
       data,
@@ -101,38 +116,27 @@ export class BellTemplateController {
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
-    schema: createSuccessResponseSchema(getSchemaPath(BellTemplateResponseDto), { withMeta: true, isArray: true }),
+    schema: createSuccessResponseSchema(getSchemaPath(BellTemplateResponseDto), {
+      withMeta: true,
+      isArray: true,
+    }),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async findAll(
-    @GetUser() user: IAccessToken,
-    @Query() queryDto: BellTemplateQueryDto,
-  ) {
-
-    const result = await this.bellTemplateService.findByInstitutionId(
-      user.institutionId,
-      {
-        groupId: queryDto.groupId,
-        scheduleType: queryDto.scheduleType,
-        page: queryDto.page,
-        limit: queryDto.limit,
-      },
-    );
-    return {
-      success: true,
-      data: result.data,
-      meta: {
-        page: result.page,
-        limit: result.limit,
-        total: result.total,
-        totalPages: result.totalPages,
-      },
-    };
+  async findAll(@GetUser() user: IAccessToken, @Query() queryDto: BellTemplateQueryDto) {
+    const result = await this.bellTemplateService.findByInstitutionId(user.institutionId, {
+      groupId: queryDto.groupId,
+      scheduleType: queryDto.scheduleType,
+      page: queryDto.page,
+      limit: queryDto.limit,
+    });
+    return paginatedSuccess(result);
   }
 
   @Patch('bulk-scope')
   @Roles(Role.ADMIN, Role.MODERATOR)
-  @ApiOperation({ summary: 'Массово изменить scope у строк шаблона (один запрос — одна транзакция)' })
+  @ApiOperation({
+    summary: 'Массово изменить scope у строк шаблона (один запрос — одна транзакция)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Количество обновлённых строк',
@@ -147,11 +151,12 @@ export class BellTemplateController {
   })
   @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 409, description: 'Конфликт уникальности после смены scope', schema: API_ERROR_RESPONSE_SCHEMA })
-  async bulkUpdateScope(
-    @Body() body: BulkScopeBodyDto,
-    @GetUser() user: IAccessToken,
-  ) {
+  @ApiResponse({
+    status: 409,
+    description: 'Конфликт уникальности после смены scope',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
+  async bulkUpdateScope(@Body() body: BulkScopeBodyDto, @GetUser() user: IAccessToken) {
     const result = await this.bellTemplateService.bulkUpdateScope(body, user.institutionId);
     return {
       success: true,
@@ -177,11 +182,12 @@ export class BellTemplateController {
   })
   @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 409, description: 'Часть шаблонов используется в расписании', schema: API_ERROR_RESPONSE_SCHEMA })
-  async bulkDeleteByScope(
-    @Body() body: BulkScopeDeleteBodyDto,
-    @GetUser() user: IAccessToken,
-  ) {
+  @ApiResponse({
+    status: 409,
+    description: 'Часть шаблонов используется в расписании',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
+  async bulkDeleteByScope(@Body() body: BulkScopeDeleteBodyDto, @GetUser() user: IAccessToken) {
     const result = await this.bellTemplateService.bulkDeleteByScope(body, user.institutionId);
     return {
       success: true,
@@ -199,10 +205,7 @@ export class BellTemplateController {
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 404, description: 'Шаблон не найден', schema: API_ERROR_RESPONSE_SCHEMA })
-  async findById(
-    @Param('id', ParseIntPipe) id: number,
-    @GetUser() user: IAccessToken,
-  ) {
+  async findById(@Param('id', ParseIntPipe) id: number, @GetUser() user: IAccessToken) {
     const data = await this.bellTemplateService.findById(id, user.institutionId);
     if (!data) throw new NotFoundException('Шаблон звонков не найден');
     return { success: true, data };
@@ -219,7 +222,11 @@ export class BellTemplateController {
   @ApiResponse({ status: 400, description: 'Ошибка валидации', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 404, description: 'Шаблон не найден', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 409, description: 'Конфликт: шаблон с такими параметрами уже существует', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 409,
+    description: 'Конфликт: шаблон с такими параметрами уже существует',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateBellTemplateDto: UpdateBellTemplateDto,
@@ -243,11 +250,12 @@ export class BellTemplateController {
   @ApiResponse({ status: 200, description: 'Шаблон удалён', schema: API_SUCCESS_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 404, description: 'Шаблон не найден', schema: API_ERROR_RESPONSE_SCHEMA })
-  @ApiResponse({ status: 409, description: 'Конфликт: шаблон используется в расписании', schema: API_ERROR_RESPONSE_SCHEMA })
-  async remove(
-    @Param('id', ParseIntPipe) id: number,
-    @GetUser() user: IAccessToken,
-  ) {
+  @ApiResponse({
+    status: 409,
+    description: 'Конфликт: шаблон используется в расписании',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
+  async remove(@Param('id', ParseIntPipe) id: number, @GetUser() user: IAccessToken) {
     await this.bellTemplateService.remove(id, user.institutionId);
     return { success: true, data: null, message: 'Шаблон звонков успешно удалён' };
   }

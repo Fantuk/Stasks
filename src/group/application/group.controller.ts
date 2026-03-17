@@ -1,5 +1,27 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiExtraModels, getSchemaPath } from '@nestjs/swagger';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  NotFoundException,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiExtraModels,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -24,11 +46,19 @@ import { UpdateGroupDto } from './dto/update-group.dto';
 import { AssignStudentsDto } from './dto/assign-students.dto';
 import { AssignTeacherDto } from './dto/assign-teacher.dto';
 import { parseIncludeOption } from 'src/common/utils/query.utils';
+import { paginatedSuccess } from 'src/common/utils/response.utils';
 import { SearchQueryDto } from 'src/common/dto/search-query.dto';
+import { SubjectService } from 'src/subject/application/subject.service';
+import { SubjectResponseDto } from 'src/subject/application/dto/subject-response.dto';
 
 /** DTO для списка групп: разрешаем limit до 500 (для выбора групп на странице звонков и т.д.) */
 class GroupQueryDto extends PaginationDto {
-  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 500, description: 'Записей на странице' })
+  @ApiPropertyOptional({
+    default: 10,
+    minimum: 1,
+    maximum: 500,
+    description: 'Записей на странице',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'Лимит должен быть числом' })
@@ -39,12 +69,15 @@ class GroupQueryDto extends PaginationDto {
 
 @ApiTags('Groups')
 @ApiBearerAuth('JWT')
-@ApiExtraModels(GroupResponseDto, GroupMentorDto, ResponseMetaDto)
+@ApiExtraModels(GroupResponseDto, GroupMentorDto, ResponseMetaDto, SubjectResponseDto)
 @Controller('group')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class GroupController {
   /** Специфичные пути (search, by-name, bulk и т.д.) должны быть объявлены выше Get(':id'). */
-  constructor(private readonly groupService: GroupService) { }
+  constructor(
+    private readonly groupService: GroupService,
+    private readonly subjectService: SubjectService,
+  ) {}
 
   @Post()
   @Roles(Role.ADMIN, Role.MODERATOR)
@@ -77,13 +110,13 @@ export class GroupController {
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
-    schema: createSuccessResponseSchema(getSchemaPath(GroupResponseDto), { withMeta: true, isArray: true }),
+    schema: createSuccessResponseSchema(getSchemaPath(GroupResponseDto), {
+      withMeta: true,
+      isArray: true,
+    }),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async findAll(
-    @GetUser() user: IAccessToken,
-    @Query() queryDto: GroupQueryDto,
-  ) {
+  async findAll(@GetUser() user: IAccessToken, @Query() queryDto: GroupQueryDto) {
     const result = await this.groupService.findByInstitutionId(
       user.institutionId,
       queryDto.page,
@@ -91,16 +124,7 @@ export class GroupController {
       queryDto.sort,
       queryDto.order,
     );
-    return {
-      success: true,
-      data: result.data,
-      meta: {
-        page: result.page,
-        limit: result.limit,
-        total: result.total,
-        totalPages: result.totalPages,
-      },
-    };
+    return paginatedSuccess(result);
   }
 
   @Post(':id/teacher')
@@ -118,11 +142,7 @@ export class GroupController {
     @Body() dto: AssignTeacherDto,
     @GetUser() user: IAccessToken,
   ) {
-    const data = await this.groupService.assignTeacher(
-      id,
-      dto.teacherUserId,
-      user.institutionId,
-    );
+    const data = await this.groupService.assignTeacher(id, dto.teacherUserId, user.institutionId);
     return { success: true, data, message: 'Куратор группы обновлён' };
   }
 
@@ -135,10 +155,7 @@ export class GroupController {
     schema: createSuccessResponseSchema(getSchemaPath(GroupResponseDto)),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async unassignTeacher(
-    @Param('id', ParseIntPipe) id: number,
-    @GetUser() user: IAccessToken,
-  ) {
+  async unassignTeacher(@Param('id', ParseIntPipe) id: number, @GetUser() user: IAccessToken) {
     const data = await this.groupService.unassignTeacher(id, user.institutionId);
     return { success: true, data, message: 'Куратор отвязан от группы' };
   }
@@ -158,11 +175,7 @@ export class GroupController {
     @Body() dto: AssignStudentsDto,
     @GetUser() user: IAccessToken,
   ) {
-    const data = await this.groupService.assignStudents(
-      id,
-      dto.studentUserIds,
-      user.institutionId,
-    );
+    const data = await this.groupService.assignStudents(id, dto.studentUserIds, user.institutionId);
     return { success: true, data, message: 'Студенты привязаны к группе' };
   }
 
@@ -196,17 +209,18 @@ export class GroupController {
     description: 'Группа найдена',
     schema: createSuccessResponseSchema(getSchemaPath(GroupResponseDto)),
   })
-  @ApiResponse({ status: 400, description: 'Параметр name обязателен', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({
+    status: 400,
+    description: 'Параметр name обязателен',
+    schema: API_ERROR_RESPONSE_SCHEMA,
+  })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async findByName(
-    @Query('name') name: string,
-    @GetUser() user: IAccessToken,
-  ) {
-    const formattedName = name.trim()
+  async findByName(@Query('name') name: string, @GetUser() user: IAccessToken) {
+    const formattedName = name.trim();
 
-    if (!formattedName) throw new BadRequestException('Параметр name обязателен')
+    if (!formattedName) throw new BadRequestException('Параметр name обязателен');
 
-    const data = await this.groupService.findByName(formattedName, user.institutionId)
+    const data = await this.groupService.findByName(formattedName, user.institutionId);
     return { success: true, data };
   }
 
@@ -218,13 +232,13 @@ export class GroupController {
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
-    schema: createSuccessResponseSchema(getSchemaPath(GroupResponseDto), { withMeta: true, isArray: true }),
+    schema: createSuccessResponseSchema(getSchemaPath(GroupResponseDto), {
+      withMeta: true,
+      isArray: true,
+    }),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async search(
-    @Query() searchDto: SearchQueryDto,
-    @GetUser() user: IAccessToken,
-  ) {
+  async search(@Query() searchDto: SearchQueryDto, @GetUser() user: IAccessToken) {
     const result = await this.groupService.search({
       institutionId: user.institutionId,
       query: searchDto.query,
@@ -233,16 +247,31 @@ export class GroupController {
       sort: searchDto.sort,
       order: searchDto.order,
     });
-    return {
-      success: true,
-      data: result.data,
-      meta: {
-        page: result.page,
-        limit: result.limit,
-        total: result.total,
-        totalPages: result.totalPages,
-      },
-    };
+    return paginatedSuccess(result);
+  }
+
+  @Get(':id/subjects')
+  @ApiOperation({
+    summary: 'Предметы, привязанные к группе',
+    description:
+      'Список предметов для расписания по группе. Id группы в пути. Эквивалентно GET /subject?groupId=:id.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Список предметов и meta',
+    schema: createSuccessResponseSchema(getSchemaPath(SubjectResponseDto), {
+      withMeta: true,
+      isArray: true,
+    }),
+  })
+  @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
+  @ApiResponse({ status: 404, description: 'Группа не найдена', schema: API_ERROR_RESPONSE_SCHEMA })
+  async findSubjectsByGroupId(
+    @Param('id', ParseIntPipe) id: number,
+    @GetUser() user: IAccessToken,
+  ) {
+    const result = await this.subjectService.findByGroupId(id, user.institutionId);
+    return paginatedSuccess(result);
   }
 
   @Get(':id')
@@ -281,11 +310,7 @@ export class GroupController {
     @Body() updateGroupDto: UpdateGroupDto,
     @GetUser() user: IAccessToken,
   ) {
-    const data = await this.groupService.update(
-      id,
-      updateGroupDto,
-      user.institutionId,
-    );
+    const data = await this.groupService.update(id, updateGroupDto, user.institutionId);
     return {
       success: true,
       data,
@@ -299,10 +324,7 @@ export class GroupController {
   @ApiResponse({ status: 200, description: 'Группа удалена', schema: API_SUCCESS_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 404, description: 'Группа не найдена', schema: API_ERROR_RESPONSE_SCHEMA })
-  async remove(
-    @Param('id', ParseIntPipe) id: number,
-    @GetUser() user: IAccessToken,
-  ) {
+  async remove(@Param('id', ParseIntPipe) id: number, @GetUser() user: IAccessToken) {
     await this.groupService.remove(id, user.institutionId);
     return { success: true, data: null, message: 'Группа успешно удалена' };
   }

@@ -13,7 +13,14 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiExtraModels, getSchemaPath } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiExtraModels,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -30,6 +37,7 @@ import { ResponseMetaDto } from 'src/common/interfaces/api-response.interface';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { SearchQueryDto } from 'src/common/dto/search-query.dto';
 import { parseBuildingIncludeOption } from 'src/common/utils/query.utils';
+import { paginatedSuccess } from 'src/common/utils/response.utils';
 import { BuildingService } from 'src/building/application/building.service';
 import { CreateBuildingDto } from 'src/building/application/dto/create-building.dto';
 import { UpdateBuildingDto } from 'src/building/application/dto/update-building.dto';
@@ -43,7 +51,7 @@ import { BuildingResponseDto } from 'src/building/application/dto/building-respo
 @Roles(Role.ADMIN, Role.MODERATOR)
 export class BuildingController {
   /** Специфичные пути (search и т.д.) должны быть объявлены выше Get(':id'). */
-  constructor(private readonly buildingService: BuildingService) { }
+  constructor(private readonly buildingService: BuildingService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -65,10 +73,7 @@ export class BuildingController {
       name: string;
     }>
   > {
-    const data = await this.buildingService.create(
-      createBuildingDto,
-      user.institutionId,
-    );
+    const data = await this.buildingService.create(createBuildingDto, user.institutionId);
     return {
       success: true,
       data,
@@ -84,29 +89,20 @@ export class BuildingController {
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
-    schema: createSuccessResponseSchema(getSchemaPath(BuildingResponseDto), { withMeta: true, isArray: true }),
+    schema: createSuccessResponseSchema(getSchemaPath(BuildingResponseDto), {
+      withMeta: true,
+      isArray: true,
+    }),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async search(
-    @Query() searchDto: SearchQueryDto,
-    @GetUser() user: IAccessToken,
-  ) {
+  async search(@Query() searchDto: SearchQueryDto, @GetUser() user: IAccessToken) {
     const result = await this.buildingService.search({
       institutionId: user.institutionId,
       query: searchDto.query,
       page: searchDto.page,
       limit: searchDto.limit,
     });
-    return {
-      success: true,
-      data: result.data,
-      meta: {
-        page: result.page,
-        limit: result.limit,
-        total: result.total,
-        totalPages: result.totalPages,
-      },
-    };
+    return paginatedSuccess(result);
   }
 
   @Get()
@@ -117,34 +113,26 @@ export class BuildingController {
   @ApiResponse({
     status: 200,
     description: 'Список и meta',
-    schema: createSuccessResponseSchema(getSchemaPath(BuildingResponseDto), { withMeta: true, isArray: true }),
+    schema: createSuccessResponseSchema(getSchemaPath(BuildingResponseDto), {
+      withMeta: true,
+      isArray: true,
+    }),
   })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
-  async findAll(
-    @GetUser() user: IAccessToken,
-    @Query() paginationDto: PaginationDto,
-  ) {
+  async findAll(@GetUser() user: IAccessToken, @Query() paginationDto: PaginationDto) {
     const result = await this.buildingService.findByInstitutionId(
       user.institutionId,
       paginationDto.page,
       paginationDto.limit,
     );
-    return {
-      success: true,
-      data: result.data,
-      meta: {
-        page: result.page,
-        limit: result.limit,
-        total: result.total,
-        totalPages: result.totalPages,
-      },
-    };
+    return paginatedSuccess(result);
   }
 
   @Get(':id')
   @ApiOperation({
     summary: 'Здание по id',
-    description: 'Параметр include: floors — вложенные этажи; floors.classrooms — дерево здание → этажи → аудитории. См. docs/api-includes.md.',
+    description:
+      'Параметр include: floors — вложенные этажи; floors.classrooms — дерево здание → этажи → аудитории. См. docs/api-includes.md.',
   })
   @ApiResponse({
     status: 200,
@@ -159,11 +147,7 @@ export class BuildingController {
     @Query('include') include?: string,
   ) {
     const options = parseBuildingIncludeOption(include);
-    const data = await this.buildingService.findById(
-      id,
-      user.institutionId,
-      options,
-    );
+    const data = await this.buildingService.findById(id, user.institutionId, options);
     if (!data) throw new NotFoundException('Здание не найдено');
     return { success: true, data };
   }
@@ -183,11 +167,7 @@ export class BuildingController {
     @Body() updateBuildingDto: UpdateBuildingDto,
     @GetUser() user: IAccessToken,
   ) {
-    const data = await this.buildingService.update(
-      id,
-      updateBuildingDto,
-      user.institutionId,
-    );
+    const data = await this.buildingService.update(id, updateBuildingDto, user.institutionId);
     return {
       success: true,
       data,
@@ -200,10 +180,7 @@ export class BuildingController {
   @ApiResponse({ status: 200, description: 'Здание удалено', schema: API_SUCCESS_RESPONSE_SCHEMA })
   @ApiResponse({ status: 403, description: 'Доступ запрещён', schema: API_ERROR_RESPONSE_SCHEMA })
   @ApiResponse({ status: 404, description: 'Здание не найдено', schema: API_ERROR_RESPONSE_SCHEMA })
-  async remove(
-    @Param('id', ParseIntPipe) id: number,
-    @GetUser() user: IAccessToken,
-  ) {
+  async remove(@Param('id', ParseIntPipe) id: number, @GetUser() user: IAccessToken) {
     await this.buildingService.remove(id, user.institutionId);
     return { success: true, data: null, message: 'Здание успешно удалено' };
   }

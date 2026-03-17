@@ -411,7 +411,7 @@ export class ScheduleService {
       teacherId: dto.teacherId,
       classroomId: dto.classroomId ?? null,
       bellTemplateId: effectiveBellTemplateId,
-      lessonNumber: effectiveBellTemplateId == null ? dto.lessonNumber ?? undefined : undefined,
+      lessonNumber: effectiveBellTemplateId == null ? (dto.lessonNumber ?? undefined) : undefined,
       scheduleDate: effectiveDate,
       institutionId,
     });
@@ -505,24 +505,22 @@ export class ScheduleService {
           ).then(
             (list) =>
               new Map(
-                list
-                  .filter(Boolean)
-                  .map((c) => {
-                    const data = c as {
-                      id: number;
-                      name: string;
-                      floor?: { building?: { id: number; name: string } };
-                    };
-                    const building = data.floor?.building;
-                    return [
-                      data.id,
-                      {
-                        id: data.id,
-                        name: data.name,
-                        ...(building && { building: { id: building.id, name: building.name } }),
-                      },
-                    ];
-                  }),
+                list.filter(Boolean).map((c) => {
+                  const data = c as {
+                    id: number;
+                    name: string;
+                    floor?: { building?: { id: number; name: string } };
+                  };
+                  const building = data.floor?.building;
+                  return [
+                    data.id,
+                    {
+                      id: data.id,
+                      name: data.name,
+                      ...(building && { building: { id: building.id, name: building.name } }),
+                    },
+                  ];
+                }),
               ),
           )
         : Promise.resolve(new Map()),

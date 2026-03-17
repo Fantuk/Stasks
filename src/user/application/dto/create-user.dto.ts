@@ -25,16 +25,24 @@ export class CreateUserDto {
   @Length(2, 30, { message: 'Фамилия должна быть от 2 до 30 символов' })
   surname: string;
 
-  @ApiPropertyOptional({ example: 'Иванович', minLength: 2, maxLength: 30, description: 'Отчество' })
+  @ApiPropertyOptional({
+    example: 'Иванович',
+    minLength: 2,
+    maxLength: 30,
+    description: 'Отчество',
+  })
   @IsOptional()
   @IsString({ message: 'Отчество должно быть строкой' })
   @Length(2, 30, { message: 'Отчество должно быть от 2 до 30 символов' })
   patronymic: string;
 
-  @ApiProperty({ example: 'user@example.com', description: 'Email (уникальный в рамках учреждения)' })
+  @ApiProperty({
+    example: 'user@example.com',
+    description: 'Email (уникальный в рамках учреждения)',
+  })
   @IsNotEmpty({ message: 'Email обязателен' })
-  @IsString({ message: 'Email должен быть строкой' })
-  @IsEmail()
+  @IsString({ message: 'Email должен быть строкой' })
+  @IsEmail({ message: 'Введите корректный email' })
   email: string;
 
   @ApiProperty({ example: 'password123', minLength: 5, maxLength: 30, description: 'Пароль' })
@@ -43,7 +51,12 @@ export class CreateUserDto {
   @Length(5, 30, { message: 'Пароль должен быть от 5 до 30 символов' })
   password: string;
 
-  @ApiProperty({ enum: Role, isArray: true, example: ['STUDENT'], description: 'Роли пользователя (одна или несколько)' })
+  @ApiProperty({
+    enum: Role,
+    isArray: true,
+    example: ['STUDENT'],
+    description: 'Роли пользователя (одна или несколько)',
+  })
   @IsNotEmpty({ message: 'Роль обязательна' })
   @IsEnum(Role, {
     each: true,

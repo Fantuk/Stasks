@@ -15,7 +15,11 @@ import { Type, Transform } from 'class-transformer';
 
 /** Фильтр scope для массового обновления: какие строки шаблона выбираем */
 export class BulkScopeFilterDto {
-  @ApiPropertyOptional({ type: Number, nullable: true, description: 'ID группы (null = общие шаблоны учреждения)' })
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'ID группы (null = общие шаблоны учреждения)',
+  })
   @IsOptional()
   @Transform(({ value }) => (value === null || value === undefined ? value : Number(value)))
   @IsInt()
@@ -28,7 +32,12 @@ export class BulkScopeFilterDto {
   @IsEnum(ScheduleType, { message: 'Тип расписания может быть только "date" или "weekday"' })
   scheduleType: ScheduleType;
 
-  @ApiPropertyOptional({ example: 1, minimum: 1, maximum: 7, description: 'Начальный день недели (обязательно при scheduleType = "weekday")' })
+  @ApiPropertyOptional({
+    example: 1,
+    minimum: 1,
+    maximum: 7,
+    description: 'Начальный день недели (обязательно при scheduleType = "weekday")',
+  })
   @ValidateIf((o) => o.scheduleType === 'weekday')
   @IsNotEmpty({ message: 'weekdayStart обязателен для типа "weekday"' })
   @Type(() => Number)
@@ -37,7 +46,12 @@ export class BulkScopeFilterDto {
   @Max(7)
   weekdayStart?: number;
 
-  @ApiPropertyOptional({ example: 5, minimum: 1, maximum: 7, description: 'Конечный день недели (обязательно при scheduleType = "weekday")' })
+  @ApiPropertyOptional({
+    example: 5,
+    minimum: 1,
+    maximum: 7,
+    description: 'Конечный день недели (обязательно при scheduleType = "weekday")',
+  })
   @ValidateIf((o) => o.scheduleType === 'weekday')
   @IsNotEmpty({ message: 'weekdayEnd обязателен для типа "weekday"' })
   @Type(() => Number)
@@ -46,7 +60,10 @@ export class BulkScopeFilterDto {
   @Max(7)
   weekdayEnd?: number;
 
-  @ApiPropertyOptional({ example: '2025-09-01T00:00:00.000Z', description: 'Конкретная дата (обязательно при scheduleType = "date")' })
+  @ApiPropertyOptional({
+    example: '2025-09-01T00:00:00.000Z',
+    description: 'Конкретная дата (обязательно при scheduleType = "date")',
+  })
   @ValidateIf((o) => o.scheduleType === 'date')
   @IsNotEmpty({ message: 'specificDate обязателен для типа "date"' })
   @IsDateString()
@@ -55,7 +72,11 @@ export class BulkScopeFilterDto {
 
 /** Новый scope: на что меняем выбранные строки */
 export class BulkScopeUpdateDto {
-  @ApiPropertyOptional({ type: Number, nullable: true, description: 'Привязать к группе (null = общий шаблон)' })
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'Привязать к группе (null = общий шаблон)',
+  })
   @IsOptional()
   @Transform(({ value }) => (value === null || value === undefined ? value : Number(value)))
   @IsInt()
@@ -68,13 +89,21 @@ export class BulkScopeUpdateDto {
   @IsEnum(ScheduleType, { message: 'Тип расписания может быть только "date" или "weekday"' })
   scheduleType?: ScheduleType;
 
-  @ApiPropertyOptional({ example: '2025-09-01T00:00:00.000Z', description: 'Конкретная дата (при scheduleType = "date")' })
+  @ApiPropertyOptional({
+    example: '2025-09-01T00:00:00.000Z',
+    description: 'Конкретная дата (при scheduleType = "date")',
+  })
   @ValidateIf((o) => o.scheduleType === 'date')
   @IsNotEmpty({ message: 'specificDate обязателен при смене на тип "date"' })
   @IsDateString()
   specificDate?: string;
 
-  @ApiPropertyOptional({ example: 1, minimum: 1, maximum: 7, description: 'Начальный день недели (при scheduleType = "weekday")' })
+  @ApiPropertyOptional({
+    example: 1,
+    minimum: 1,
+    maximum: 7,
+    description: 'Начальный день недели (при scheduleType = "weekday")',
+  })
   @ValidateIf((o) => o.scheduleType === 'weekday')
   @IsNotEmpty({ message: 'weekdayStart обязателен при смене на тип "weekday"' })
   @Type(() => Number)
@@ -83,7 +112,12 @@ export class BulkScopeUpdateDto {
   @Max(7)
   weekdayStart?: number;
 
-  @ApiPropertyOptional({ example: 5, minimum: 1, maximum: 7, description: 'Конечный день недели (при scheduleType = "weekday")' })
+  @ApiPropertyOptional({
+    example: 5,
+    minimum: 1,
+    maximum: 7,
+    description: 'Конечный день недели (при scheduleType = "weekday")',
+  })
   @ValidateIf((o) => o.scheduleType === 'weekday')
   @IsNotEmpty({ message: 'weekdayEnd обязателен при смене на тип "weekday"' })
   @Type(() => Number)

@@ -22,16 +22,11 @@ export class ClassroomService {
     return classroom.toResponse();
   }
 
-  private async ensureFloorAccess(
-    floorId: number,
-    institutionId: number,
-  ): Promise<void> {
+  private async ensureFloorAccess(floorId: number, institutionId: number): Promise<void> {
     await this.floorService.findById(floorId, institutionId);
   }
 
-  private getInstitutionIdByClassroomId(
-    classroomId: number,
-  ): Promise<number | null> {
+  private getInstitutionIdByClassroomId(classroomId: number): Promise<number | null> {
     return this.classroomRepository.getInstitutionIdByClassroomId(classroomId);
   }
 
@@ -45,11 +40,7 @@ export class ClassroomService {
     return this.mapToResponse(created);
   }
 
-  async findById(
-    id: number,
-    institutionId?: number,
-    options?: IClassroomFindOptions,
-  ) {
+  async findById(id: number, institutionId?: number, options?: IClassroomFindOptions) {
     const includeFloor = shouldIncludeFloor(options);
 
     if (includeFloor) {
@@ -74,15 +65,13 @@ export class ClassroomService {
     return this.mapToResponse(classroom);
   }
 
-  async findByFloorId(
-    floorId: number,
-    institutionId: number,
-    page?: number,
-    limit?: number,
-  ) {
+  async findByFloorId(floorId: number, institutionId: number, page?: number, limit?: number) {
     await this.ensureFloorAccess(floorId, institutionId);
-    const { classrooms, total } =
-      await this.classroomRepository.findByFloorId(floorId, page, limit);
+    const { classrooms, total } = await this.classroomRepository.findByFloorId(
+      floorId,
+      page,
+      limit,
+    );
     return paginate(classrooms.map(this.mapToResponse), total, page, limit);
   }
 
@@ -108,11 +97,7 @@ export class ClassroomService {
     );
   }
 
-  async update(
-    id: number,
-    updateDto: UpdateClassroomDto,
-    institutionId?: number,
-  ) {
+  async update(id: number, updateDto: UpdateClassroomDto, institutionId?: number) {
     const existing = await this.classroomRepository.findById(id);
     if (!existing) {
       throw new NotFoundException('Аудитория не найдена');

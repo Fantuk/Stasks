@@ -10,7 +10,10 @@ export class CreateFloorDto {
   @IsInt({ message: 'ID здания должен быть целым числом' })
   buildingId: number;
 
-  @ApiProperty({ example: 1, description: 'Номер этажа (целое число, в т.ч. отрицательное для подземных)' })
+  @ApiProperty({
+    example: 1,
+    description: 'Номер этажа (целое число, в т.ч. отрицательное для подземных)',
+  })
   @IsNotEmpty({ message: 'Номер этажа обязателен' })
   @Type(() => Number)
   @IsInt({ message: 'Номер этажа должен быть целым числом' })

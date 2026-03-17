@@ -1,10 +1,6 @@
-import {
-  ConflictException,
-  Injectable,
-  InternalServerErrorException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { handlePrismaUniqueConflict } from 'src/common/utils/prisma-error.utils';
 import { Teacher } from 'src/teacher/domain/entities/teacher.entity';
 import {
   FindTeacherOptions,
@@ -15,7 +11,7 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class TeacherRepository implements ITeacherRepository {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   /** Маппинг сырой записи в домен. При include group — group для курируемой группы; при teacherSubjects — список предметов. */
   private mapToDomain(
@@ -27,9 +23,7 @@ export class TeacherRepository implements ITeacherRepository {
     type GroupPayload = { id: number; name: string; institutionId: number };
     type TeacherSubjectPayload = { subject: { id: number; name: string } };
     const groupPayload: GroupPayload | undefined =
-      'group' in raw && raw.group != null
-        ? (raw.group as GroupPayload)
-        : undefined;
+      'group' in raw && raw.group != null ? (raw.group as GroupPayload) : undefined;
     const subjects =
       'teacherSubjects' in raw &&
       Array.isArray((raw as { teacherSubjects?: TeacherSubjectPayload[] }).teacherSubjects)
@@ -59,14 +53,9 @@ export class TeacherRepository implements ITeacherRepository {
       const saved = await this.prisma.teacher.create({ data });
       return this.mapToDomain(saved);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          throw new ConflictException(
-            'Преподаватель с таким userId уже существует',
-          );
-        }
-      }
-      throw new InternalServerErrorException(
+      handlePrismaUniqueConflict(
+        error,
+        'Преподаватель с таким userId уже существует',
         'Произошла ошибка во время создания преподавателя',
       );
     }
@@ -84,7 +73,10 @@ export class TeacherRepository implements ITeacherRepository {
     return raw ? this.mapToDomain(raw, options?.includeUser) : null;
   }
 
-  async findByMentoredGroupId(groupId: number, options?: FindTeacherOptions): Promise<Teacher | null> {
+  async findByMentoredGroupId(
+    groupId: number,
+    options?: FindTeacherOptions,
+  ): Promise<Teacher | null> {
     const include = options?.includeUser ? { user: true } : undefined;
     const raw = await this.prisma.teacher.findUnique({
       where: { mentoredGroupId: groupId },
@@ -137,7 +129,7 @@ export class TeacherRepository implements ITeacherRepository {
   async findBySubjectId(
     subjectId: number,
     options?: FindTeacherOptions,
-    institutionId?: number
+    institutionId?: number,
   ): Promise<Teacher[]> {
     const include = options?.includeUser ? { user: true } : undefined;
     const raw = await this.prisma.teacher.findMany({
@@ -163,14 +155,10 @@ export class TeacherRepository implements ITeacherRepository {
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2025') {
-          throw new NotFoundException(
-            `Преподаватель с userId ${userId} не найден`,
-          );
+          throw new NotFoundException('Преподаватель не найден');
         }
       }
-      throw new InternalServerErrorException(
-        'Произошла ошибка во время обновления преподавателя',
-      );
+      throw new InternalServerErrorException('Произошла ошибка во время обновления преподавателя');
     }
   }
 
@@ -180,14 +168,10 @@ export class TeacherRepository implements ITeacherRepository {
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2025') {
-          throw new NotFoundException(
-            `Преподаватель с userId ${userId} не найден`,
-          );
+          throw new NotFoundException('Преподаватель не найден');
         }
       }
-      throw new InternalServerErrorException(
-        'Произошла ошибка во время удаления преподавателя',
-      );
+      throw new InternalServerErrorException('Произошла ошибка во время удаления преподавателя');
     }
   }
 }

@@ -25,9 +25,7 @@ export class AuthService {
       if (error instanceof ConflictException) {
         throw error;
       }
-      throw new InternalServerErrorException(
-        'Ошибка при регистрации пользователя',
-      );
+      throw new InternalServerErrorException('Ошибка при регистрации пользователя');
     }
   }
 
@@ -39,10 +37,7 @@ export class AuthService {
     const dummyHash = '$2b$10$dummyhashfordummycomparisonpurposes';
     const hashToCompare = user?.password || dummyHash;
 
-    const isPasswordValid = await this.validatePassword(
-      password,
-      hashToCompare,
-    );
+    const isPasswordValid = await this.validatePassword(password, hashToCompare);
 
     if (!user || !isPasswordValid) {
       throw new UnauthorizedException('Неверный логин или пароль');
@@ -52,20 +47,13 @@ export class AuthService {
   }
 
   async logout(refreshToken: string) {
-    if (
-      !refreshToken ||
-      typeof refreshToken !== 'string' ||
-      refreshToken.trim() === ''
-    ) {
+    if (!refreshToken || typeof refreshToken !== 'string' || refreshToken.trim() === '') {
       return;
     }
     return this.authTokenService.removeRefreshToken(refreshToken);
   }
 
-  private validatePassword(
-    plainPassword: string,
-    hashedPassword: string,
-  ): boolean {
+  private validatePassword(plainPassword: string, hashedPassword: string): boolean {
     return compareSync(plainPassword, hashedPassword);
   }
 }

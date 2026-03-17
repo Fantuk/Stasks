@@ -20,22 +20,22 @@ export class ScheduleQueryDto {
   @ApiPropertyOptional({ example: 1, description: 'Фильтр по ID группы' })
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
+  @IsInt({ message: 'groupId должен быть целым числом' })
+  @Min(1, { message: 'groupId должен быть не меньше 1' })
   groupId?: number;
 
   @ApiPropertyOptional({ example: 1, description: 'Фильтр по ID учителя' })
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
+  @IsInt({ message: 'teacherId должен быть целым числом' })
+  @Min(1, { message: 'teacherId должен быть не меньше 1' })
   teacherId?: number;
 
   @ApiPropertyOptional({ example: 1, description: 'Фильтр по ID аудитории' })
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
+  @IsInt({ message: 'classroomId должен быть целым числом' })
+  @Min(1, { message: 'classroomId должен быть не меньше 1' })
   classroomId?: number;
 
   @ApiPropertyOptional({
@@ -43,7 +43,7 @@ export class ScheduleQueryDto {
     description: 'Начало периода (включительно)',
   })
   @IsOptional()
-  @IsDateString()
+  @IsDateString({}, { message: 'Укажите дату в формате ISO' })
   dateFrom?: string;
 
   @ApiPropertyOptional({
@@ -51,22 +51,27 @@ export class ScheduleQueryDto {
     description: 'Конец периода (включительно)',
   })
   @IsOptional()
-  @IsDateString()
+  @IsDateString({}, { message: 'Укажите дату в формате ISO' })
   dateTo?: string;
 
   @ApiPropertyOptional({ default: 1, minimum: 1, description: 'Номер страницы' })
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
+  @IsInt({ message: 'Страница должна быть целым числом' })
+  @Min(1, { message: 'Страница должна быть не меньше 1' })
   page?: number;
 
-  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 100, description: 'Записей на странице' })
+  @ApiPropertyOptional({
+    default: 10,
+    minimum: 1,
+    maximum: 100,
+    description: 'Записей на странице',
+  })
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
+  @IsInt({ message: 'Лимит должен быть целым числом' })
+  @Min(1, { message: 'Лимит должен быть не меньше 1' })
+  @Max(100, { message: 'Лимит не может быть больше 100' })
   limit?: number;
 
   /** Вложенные сущности в ответе: subject, group, teacher, classroom (через запятую) */
@@ -82,12 +87,20 @@ export class ScheduleQueryDto {
   })
   expand?: string;
 
-  @ApiPropertyOptional({ description: 'Поле сортировки', enum: ['scheduleDate', 'id'], example: 'scheduleDate' })
+  @ApiPropertyOptional({
+    description: 'Поле сортировки',
+    enum: ['scheduleDate', 'id'],
+    example: 'scheduleDate',
+  })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'Поле сортировки должно быть строкой' })
   sort?: string;
 
-  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'asc', description: 'Направление сортировки' })
+  @ApiPropertyOptional({
+    enum: ['asc', 'desc'],
+    default: 'asc',
+    description: 'Направление сортировки',
+  })
   @IsOptional()
   @IsIn(['asc', 'desc'], { message: 'order может быть только asc или desc' })
   order?: 'asc' | 'desc';

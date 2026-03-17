@@ -1,10 +1,7 @@
-import {
-  Injectable,
-  ConflictException,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { handlePrismaUniqueConflict } from 'src/common/utils/prisma-error.utils';
 import { Classroom } from 'src/classroom/domain/entities/classroom.entity';
 import type {
   IClassroomRepository,
@@ -23,11 +20,7 @@ const classroomSelect = {
 export class ClassroomRepository implements IClassroomRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  private mapToDomain(raw: {
-    id: number;
-    floorId: number;
-    name: string;
-  }): Classroom {
+  private mapToDomain(raw: { id: number; floorId: number; name: string }): Classroom {
     return Classroom.fromPersistence({
       id: raw.id,
       floorId: raw.floorId,
@@ -35,9 +28,7 @@ export class ClassroomRepository implements IClassroomRepository {
     });
   }
 
-  async create(
-    data: Omit<Classroom, 'id' | 'toPersistence' | 'toResponse'>,
-  ): Promise<Classroom> {
+  async create(data: Omit<Classroom, 'id' | 'toPersistence' | 'toResponse'>): Promise<Classroom> {
     try {
       const classroom = Classroom.create({
         floorId: data.floorId,
@@ -49,14 +40,11 @@ export class ClassroomRepository implements IClassroomRepository {
       });
       return this.mapToDomain(saved);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          throw new ConflictException(
-            'Аудитория с таким именем на этаже уже существует',
-          );
-        }
-      }
-      throw new InternalServerErrorException('Ошибка при создании аудитории');
+      handlePrismaUniqueConflict(
+        error,
+        'Аудитория с таким именем на этаже уже существует',
+        'Ошибка при создании аудитории',
+      );
     }
   }
 
@@ -78,9 +66,7 @@ export class ClassroomRepository implements IClassroomRepository {
     return raw?.floor?.building?.institutionId ?? null;
   }
 
-  async findByIdWithFloor(
-    id: number,
-  ): Promise<ClassroomWithFloor | null> {
+  async findByIdWithFloor(id: number): Promise<ClassroomWithFloor | null> {
     const raw = await this.prisma.classroom.findUnique({
       where: { id },
       select: {
@@ -99,7 +85,11 @@ export class ClassroomRepository implements IClassroomRepository {
     });
     if (!raw) return null;
     const classroom = this.mapToDomain(raw);
-    const building = raw.floor.building as { id: number; name: string; institutionId: number } | null;
+    const building = raw.floor.building as {
+      id: number;
+      name: string;
+      institutionId: number;
+    } | null;
     const floor: ClassroomNestedFloor = {
       id: raw.floor.id,
       buildingId: raw.floor.buildingId,
@@ -156,8 +146,7 @@ export class ClassroomRepository implements IClassroomRepository {
       };
     }
     const total = await this.prisma.classroom.count({ where });
-    const skip =
-      params.page && params.limit ? (params.page - 1) * params.limit : undefined;
+    const skip = params.page && params.limit ? (params.page - 1) * params.limit : undefined;
     const take = params.limit;
     const raw = await this.prisma.classroom.findMany({
       where,
@@ -172,10 +161,7 @@ export class ClassroomRepository implements IClassroomRepository {
     };
   }
 
-  async update(
-    id: number,
-    data: Partial<Omit<Classroom, 'id'>>,
-  ): Promise<Classroom> {
+  async update(id: number, data: Partial<Omit<Classroom, 'id'>>): Promise<Classroom> {
     try {
       const updateData = data as Prisma.ClassroomUpdateInput;
       const updated = await this.prisma.classroom.update({
@@ -185,14 +171,11 @@ export class ClassroomRepository implements IClassroomRepository {
       });
       return this.mapToDomain(updated);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          throw new ConflictException(
-            'Аудитория с таким именем на этаже уже существует',
-          );
-        }
-      }
-      throw new InternalServerErrorException('Ошибка при обновлении аудитории');
+      handlePrismaUniqueConflict(
+        error,
+        'Аудитория с таким именем на этаже уже существует',
+        'Ошибка при обновлении аудитории',
+      );
     }
   }
 

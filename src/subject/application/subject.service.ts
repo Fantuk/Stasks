@@ -1,4 +1,10 @@
-import { Injectable, Inject, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  NotFoundException,
+  ForbiddenException,
+  ConflictException,
+} from '@nestjs/common';
 import { Subject } from 'src/subject/domain/entities/subject.entity';
 import type { ISubjectRepository } from 'src/subject/domain/subject-repository.interface';
 import { CreateSubjectDto } from 'src/subject/application/dto/create-subject.dto';
@@ -16,7 +22,7 @@ export class SubjectService {
     @Inject('SubjectRepository') private readonly subjectRepository: ISubjectRepository,
     private readonly groupService: GroupService,
     private readonly teacherService: TeacherService,
-  ) { }
+  ) {}
 
   private mapToResponse(subject: Subject) {
     return subject.toResponse();
@@ -68,7 +74,7 @@ export class SubjectService {
         : Promise.resolve([]),
       shouldIncludeGroups(options)
         ? this.groupService.findBySubjectId(id, institutionId)
-    : Promise.resolve([]),
+        : Promise.resolve([]),
     ]);
     return {
       ...base,
@@ -81,17 +87,24 @@ export class SubjectService {
     };
   }
 
-  async findByInstitutionId(
-    institutionId: number,
-    page?: number,
-    limit?: number,
-  ) {
+  async findByInstitutionId(institutionId: number, page?: number, limit?: number) {
     const { subjects, total } = await this.subjectRepository.findByInstitutionId(
       institutionId,
       page,
       limit,
     );
     return paginate(subjects.map(this.mapToResponse), total, page, limit);
+  }
+
+  /**
+   * Предметы, привязанные к группе (для расписания). Проверяет доступ к группе по institutionId.
+   */
+  async findByGroupId(groupId: number, institutionId: number) {
+    await this.groupService.findById(groupId, institutionId);
+    const subjects = await this.subjectRepository.findByGroupId(groupId, institutionId);
+    const data = subjects.map((s) => this.mapToResponse(s));
+    const total = data.length;
+    return paginate(data, total, 1, total || 1);
   }
 
   async update(id: number, dto: UpdateSubjectDto, institutionId?: number) {
@@ -117,27 +130,24 @@ export class SubjectService {
    * Привязывает преподавателей к предмету.
    * В API приходят userId (из TeacherListItem), в БД teacher_subjects хранит teachers.id — преобразуем.
    */
-  async assignTeachers(
-    subjectId: number,
-    teacherIds: number[],
-    institutionId: number,
-  ) {
+  async assignTeachers(subjectId: number, teacherIds: number[], institutionId: number) {
     await this.findById(subjectId, institutionId);
     const resolvedIds: number[] = [];
     for (const userId of teacherIds) {
       const teacher = await this.teacherService.findByUserId(userId, institutionId);
       if (!teacher || teacher.id == null) {
-        throw new NotFoundException(`Преподаватель (userId: ${userId}) не найден`);
+        throw new NotFoundException('Преподаватель не найден');
       }
       resolvedIds.push(teacher.id);
     }
 
-    const existing = await this.subjectRepository.findExistingTeachersBySubject(subjectId, resolvedIds);
+    const existing = await this.subjectRepository.findExistingTeachersBySubject(
+      subjectId,
+      resolvedIds,
+    );
     if (existing.length > 0) {
       const names = existing.map((t) => `«${t.name}»`).join(', ');
-      throw new ConflictException(
-        `Преподаватели ${names} уже привязаны к этому предмету`,
-      );
+      throw new ConflictException(`Преподаватели ${names} уже привязаны к этому предмету`);
     }
 
     await this.subjectRepository.assignTeachers(subjectId, resolvedIds);
@@ -152,7 +162,7 @@ export class SubjectService {
     await this.findById(subjectId, institutionId);
     const teacher = await this.teacherService.findByUserId(teacherId, institutionId);
     if (!teacher || teacher.id == null) {
-      throw new NotFoundException(`Преподаватель (userId: ${teacherId}) не найден`);
+      throw new NotFoundException('Преподаватель не найден');
     }
     await this.subjectRepository.unassignTeacher(subjectId, teacher.id);
   }
@@ -166,9 +176,7 @@ export class SubjectService {
     const existing = await this.subjectRepository.findExistingGroupsBySubject(subjectId, groupIds);
     if (existing.length > 0) {
       const names = existing.map((g) => `«${g.name}»`).join(', ');
-      throw new ConflictException(
-        `Группы ${names} уже привязаны к этому предмету`,
-      );
+      throw new ConflictException(`Группы ${names} уже привязаны к этому предмету`);
     }
 
     await this.subjectRepository.assignGroups(subjectId, groupIds);

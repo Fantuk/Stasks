@@ -9,11 +9,7 @@ export class Building {
     return new Building(null, params.institutionId, params.name);
   }
 
-  static fromPersistence(raw: {
-    id: number;
-    institutionId: number;
-    name: string;
-  }): Building {
+  static fromPersistence(raw: { id: number; institutionId: number; name: string }): Building {
     return new Building(raw.id, raw.institutionId, raw.name);
   }
 

@@ -11,11 +11,16 @@ import {
   IClassroomFindOptions,
 } from 'src/common/interfaces/find-options.interface';
 
-const VALID_INCLUDE: IncludeOption[] =
-  [
-    'user', 'members', 'teachers', 'groups',
-    'student', 'teacher', 'moderator', 'profiles',
-  ];
+const VALID_INCLUDE: IncludeOption[] = [
+  'user',
+  'members',
+  'teachers',
+  'groups',
+  'student',
+  'teacher',
+  'moderator',
+  'profiles',
+];
 
 export function parseIncludeOption(include?: string): IFindOneOptions {
   if (!include?.trim()) return {};
@@ -52,8 +57,8 @@ export function parseUserIncludeOption(include?: string): IFindUserOptions {
   if (!include?.trim()) return {};
   const parts = include.split(',').map((s) => s.trim().toLowerCase());
   const hasProfiles = parts.includes('profiles');
-  const filtered = parts.filter(
-    (p): p is UserProfileIncludeOption => USER_PROFILE_OPTIONS.includes(p as UserProfileIncludeOption),
+  const filtered = parts.filter((p): p is UserProfileIncludeOption =>
+    USER_PROFILE_OPTIONS.includes(p as UserProfileIncludeOption),
   );
   const includeSet = new Set<UserProfileIncludeOption>(filtered);
   if (hasProfiles) {
@@ -74,7 +79,9 @@ export function parseBuildingIncludeOption(include?: string): IBuildingFindOptio
 }
 
 export function shouldIncludeFloors(options?: IBuildingFindOptions): boolean {
-  return options?.include?.includes('floors') ?? options?.include?.includes('floors.classrooms') ?? false;
+  return (
+    options?.include?.includes('floors') ?? options?.include?.includes('floors.classrooms') ?? false
+  );
 }
 
 export function shouldIncludeFloorsClassrooms(options?: IBuildingFindOptions): boolean {

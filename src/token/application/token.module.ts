@@ -21,10 +21,6 @@ import { TokenRepository } from '../infrastructure/prisma/token.repository';
     AuthTokensService,
   ],
   exports: [TokenService, JwtTokenService, AuthTokensService],
-  imports: [
-    UserModule,
-    ConfigModule,
-    JwtModule.registerAsync(jwtModuleAsyncOptions()),
-  ],
+  imports: [UserModule, ConfigModule, JwtModule.registerAsync(jwtModuleAsyncOptions())],
 })
 export class TokenModule {}

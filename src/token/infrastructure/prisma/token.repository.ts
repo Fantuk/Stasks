@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  BadRequestException,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ITokenRepository } from 'src/token/domain/token-repository.interface';
 import { RefreshToken } from 'src/token/domain/entities/token.entity';
@@ -35,9 +31,7 @@ export class TokenRepository implements ITokenRepository {
           throw new BadRequestException('Такой токен уже существует');
         }
       }
-      throw new InternalServerErrorException(
-        'Произошла ошибка во время создания токена',
-      );
+      throw new InternalServerErrorException('Произошла ошибка во время создания токена');
     }
   }
 
