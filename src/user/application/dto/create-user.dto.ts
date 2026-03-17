@@ -42,7 +42,7 @@ export class CreateUserDto {
   })
   @IsNotEmpty({ message: 'Email обязателен' })
   @IsString({ message: 'Email должен быть строкой' })
-  @IsEmail({ message: 'Введите корректный email' })
+  @IsEmail(undefined, { message: 'Введите корректный email' })
   email: string;
 
   @ApiProperty({ example: 'password123', minLength: 5, maxLength: 30, description: 'Пароль' })

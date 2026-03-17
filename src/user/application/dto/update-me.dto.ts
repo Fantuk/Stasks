@@ -32,6 +32,6 @@ export class UpdateMeDto {
   })
   @IsOptional()
   @IsString({ message: 'Email должен быть строкой' })
-  @IsEmail({ message: 'Введите корректный email' })
+  @IsEmail(undefined, { message: 'Введите корректный email' })
   email?: string;
 }
