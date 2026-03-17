@@ -6,8 +6,6 @@ import { Plus, Settings2, Trash2 } from "lucide-react";
 import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
-import { Label } from "@/app/components/ui/label";
-import { DialogFooter } from "@/app/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { EntityEditSidepage } from "@/app/components/EntityEditSidepage";
 import { BuildingEditForm } from "@/app/(admin)/admin/buildings/BuildingEditForm";
@@ -16,23 +14,25 @@ import {
   fetchBuildingsSearch,
   fetchBuildingWithFloorsAndClassrooms,
   deleteBuilding,
-  updateBuilding,
   createFloor,
   updateFloor,
   deleteFloor,
   createClassroom,
   updateClassroom,
   deleteClassroom,
+  BUILDINGS_QUERY_KEY,
+  BUILDING_DETAIL_QUERY_KEY,
   type BuildingListItem,
   type BuildingWithFloors,
   type FloorWithClassrooms,
   type ClassroomListItem,
   type PaginationMeta,
 } from "@/app/(admin)/admin/buildings/buildings-api";
+import { getApiErrorMessage } from "@/lib/api-errors";
+import { invalidateAndRefetch } from "@/lib/queryClient";
+import { BuildingTreeModal } from "@/app/(admin)/admin/buildings/BuildingTreeModal";
 
 const LIMIT = 10;
-const BUILDINGS_QUERY_KEY = "admin-buildings" as const;
-const BUILDING_DETAIL_QUERY_KEY = "admin-building-detail" as const;
 
 /** Стили по макету Figma: тег (здание/аудитория) */
 const tagClasses =
@@ -54,13 +54,7 @@ function BuildingCardWithFloorState({ building }: { building: BuildingListItem }
   // Режим добавления этажа: показываем счётчик выбора номера этажа
   const [isAddingFloor, setIsAddingFloor] = React.useState(false);
   const [floorNumberToCreate, setFloorNumberToCreate] = React.useState(0);
-  // Одна общая модалка для всего дерева (здание + этажи + аудитории)
   const [treeModalOpen, setTreeModalOpen] = React.useState(false);
-  /** Локальная копия дерева для редактирования в модалке; синхронизируется с buildingDetail при открытии */
-  const [treeBuildingName, setTreeBuildingName] = React.useState("");
-  const [treeFloors, setTreeFloors] = React.useState<
-    Array<{ id?: number | null; number: number; classrooms: Array<{ id?: number | null; name: string }> }>
-  >([]);
 
   const { data: buildingDetail, isPending } = useQuery({
     queryKey: [BUILDING_DETAIL_QUERY_KEY, buildingId],
@@ -80,21 +74,6 @@ function BuildingCardWithFloorState({ building }: { building: BuildingListItem }
       if (firstId != null) setSelectedFloorId(firstId);
     }
   }, [floors, selectedFloorId]);
-
-  // Синхронизировать локальное дерево с buildingDetail при открытии модалки и при обновлении данных
-  React.useEffect(() => {
-    if (treeModalOpen && buildingDetail) {
-      setTreeBuildingName(buildingDetail.name ?? building.name ?? "");
-      const fl = (buildingDetail.floors ?? []).sort((a, b) => a.number - b.number);
-      setTreeFloors(
-        fl.map((f) => ({
-          id: f.id,
-          number: f.number,
-          classrooms: (f.classrooms ?? []).map((c) => ({ id: c.id, name: c.name })),
-        }))
-      );
-    }
-  }, [treeModalOpen, buildingDetail, building.name]);
 
   const selectedFloor = floors.find((f) => f.id === selectedFloorId) ?? floors[0];
   const classrooms = selectedFloor?.classrooms ?? [];
@@ -121,34 +100,23 @@ function BuildingCardWithFloorState({ building }: { building: BuildingListItem }
       setIsAddingFloor(false);
       if (floorId != null) setSelectedFloorId(floorId);
       // Ждём refetch, чтобы UI гарантированно показывал актуальные данные с сервера
-      await queryClient.invalidateQueries({ queryKey: [BUILDING_DETAIL_QUERY_KEY, buildingId] });
-      await queryClient.refetchQueries({ queryKey: [BUILDING_DETAIL_QUERY_KEY, buildingId] });
-      await queryClient.invalidateQueries({ queryKey: [BUILDINGS_QUERY_KEY] });
-    },
-  });
-
-  const updateBuildingMutation = useMutation({
-    mutationFn: ({ id, name: n }: { id: number; name: string }) => updateBuilding(id, { name: n }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [BUILDING_DETAIL_QUERY_KEY, buildingId] });
-      await queryClient.refetchQueries({ queryKey: [BUILDINGS_QUERY_KEY] });
+      await invalidateAndRefetch(queryClient, [BUILDING_DETAIL_QUERY_KEY, buildingId]);
+      await invalidateAndRefetch(queryClient, [BUILDINGS_QUERY_KEY]);
     },
   });
 
   const updateFloorMutation = useMutation({
     mutationFn: ({ id, number: num }: { id: number; number: number }) => updateFloor(id, { number: num }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [BUILDING_DETAIL_QUERY_KEY, buildingId] });
-      await queryClient.refetchQueries({ queryKey: [BUILDING_DETAIL_QUERY_KEY, buildingId] });
+      await invalidateAndRefetch(queryClient, [BUILDING_DETAIL_QUERY_KEY, buildingId]);
     },
   });
 
   const deleteFloorMutation = useMutation({
     mutationFn: deleteFloor,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [BUILDING_DETAIL_QUERY_KEY, buildingId] });
-      await queryClient.refetchQueries({ queryKey: [BUILDING_DETAIL_QUERY_KEY, buildingId] });
-      await queryClient.refetchQueries({ queryKey: [BUILDINGS_QUERY_KEY] });
+      await invalidateAndRefetch(queryClient, [BUILDING_DETAIL_QUERY_KEY, buildingId]);
+      await invalidateAndRefetch(queryClient, [BUILDINGS_QUERY_KEY]);
       setSelectedFloorId(null);
     },
   });
@@ -178,24 +146,21 @@ function BuildingCardWithFloorState({ building }: { building: BuildingListItem }
       );
       setNewClassroomName("");
       setIsAddingClassroom(false);
-      await queryClient.invalidateQueries({ queryKey: [BUILDING_DETAIL_QUERY_KEY, buildingId] });
-      await queryClient.refetchQueries({ queryKey: [BUILDING_DETAIL_QUERY_KEY, buildingId] });
+      await invalidateAndRefetch(queryClient, [BUILDING_DETAIL_QUERY_KEY, buildingId]);
     },
   });
 
   const updateClassroomMutation = useMutation({
     mutationFn: ({ id, name: n }: { id: number; name: string }) => updateClassroom(id, { name: n }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [BUILDING_DETAIL_QUERY_KEY, buildingId] });
-      await queryClient.refetchQueries({ queryKey: [BUILDING_DETAIL_QUERY_KEY, buildingId] });
+      await invalidateAndRefetch(queryClient, [BUILDING_DETAIL_QUERY_KEY, buildingId]);
     },
   });
 
   const deleteClassroomMutation = useMutation({
     mutationFn: deleteClassroom,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [BUILDING_DETAIL_QUERY_KEY, buildingId] });
-      await queryClient.refetchQueries({ queryKey: [BUILDING_DETAIL_QUERY_KEY, buildingId] });
+      await invalidateAndRefetch(queryClient, [BUILDING_DETAIL_QUERY_KEY, buildingId]);
     },
   });
 
@@ -203,8 +168,7 @@ function BuildingCardWithFloorState({ building }: { building: BuildingListItem }
     mutationFn: deleteBuilding,
     onSuccess: async () => {
       // Инвалидируем и принудительно перезапрашиваем список, чтобы удалённое здание исчезло из UI
-      await queryClient.invalidateQueries({ queryKey: [BUILDINGS_QUERY_KEY] });
-      await queryClient.refetchQueries({ queryKey: [BUILDINGS_QUERY_KEY] });
+      await invalidateAndRefetch(queryClient, [BUILDINGS_QUERY_KEY]);
     },
   });
 
@@ -232,29 +196,6 @@ function BuildingCardWithFloorState({ building }: { building: BuildingListItem }
 
   // Открыть общую модалку дерева (с карточки — по кнопке «Настройки» или карандашу этажа/аудитории)
   const openTreeModal = () => setTreeModalOpen(true);
-
-  const handleSaveBuildingName = (e: React.FormEvent) => {
-    e.preventDefault();
-    const name = treeBuildingName.trim();
-    if (!name || name.length < 2 || name.length > 100) return;
-    updateBuildingMutation.mutate({ id: buildingId, name });
-  };
-
-  const handleSaveFloorNumber = (floorId: number, number: number) => {
-    updateFloorMutation.mutate({ id: floorId, number });
-  };
-
-  const handleSaveClassroomName = (classroomId: number, name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed || trimmed.length > 50) return;
-    updateClassroomMutation.mutate({ id: classroomId, name: trimmed });
-  };
-
-  // Добавление этажа/аудитории внутри модалки дерева
-  const [addingFloorInModal, setAddingFloorInModal] = React.useState(false);
-  const [floorNumberToAddInModal, setFloorNumberToAddInModal] = React.useState(0);
-  const [addingClassroomForFloorId, setAddingClassroomForFloorId] = React.useState<number | null>(null);
-  const [newClassroomNameInModal, setNewClassroomNameInModal] = React.useState("");
 
   const handleAddClassroom = () => {
     const name = newClassroomName.trim();
@@ -392,9 +333,10 @@ function BuildingCardWithFloorState({ building }: { building: BuildingListItem }
 
             {(createFloorMutation.isError || updateFloorMutation.isError) && (
               <p className="text-sm text-destructive" role="alert">
-                {(createFloorMutation.error ?? updateFloorMutation.error) instanceof Error
-                  ? (createFloorMutation.error ?? updateFloorMutation.error)?.message
-                  : "Не удалось выполнить действие с этажом"}
+                {getApiErrorMessage(
+                  createFloorMutation.error ?? updateFloorMutation.error,
+                  "Не удалось выполнить действие с этажом",
+                )}
               </p>
             )}
             {floors.length === 0 ? (
@@ -453,264 +395,13 @@ function BuildingCardWithFloorState({ building }: { building: BuildingListItem }
               </div>
             )}
 
-            {/* Общая модалка: дерево здания (название, этажи, аудитории) */}
-            <EntityEditSidepage
+            <BuildingTreeModal
               open={treeModalOpen}
-              onOpenChange={(open) => {
-                setTreeModalOpen(open);
-                if (!open) {
-                  setAddingFloorInModal(false);
-                  setAddingClassroomForFloorId(null);
-                }
-              }}
-              title={`Редактировать: ${building.name}`}
-              className="max-w-xl max-h-[85vh] overflow-hidden flex flex-col"
-            >
-              <div className="overflow-y-auto flex-1 min-h-0 space-y-6 pr-1">
-                {/* Блок: название здания */}
-                <form onSubmit={handleSaveBuildingName} className="space-y-2">
-                  <Label className="text-base text-[#333333]">Название здания</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={treeBuildingName}
-                      onChange={(e) => setTreeBuildingName(e.target.value)}
-                      placeholder="Название здания"
-                      disabled={updateBuildingMutation.isPending}
-                      className="h-8 flex-1 text-base text-[#333333] placeholder:text-[#929292] bg-[#f6f6f6] border-[#cccccc]"
-                    />
-                    <Button type="submit" size="sm" disabled={updateBuildingMutation.isPending || treeBuildingName.trim().length < 2}>
-                      {updateBuildingMutation.isPending ? "…" : "Сохранить"}
-                    </Button>
-                  </div>
-                  {updateBuildingMutation.isError && (
-                    <p className="text-sm text-destructive" role="alert">
-                      {updateBuildingMutation.error instanceof Error ? updateBuildingMutation.error.message : "Ошибка сохранения"}
-                    </p>
-                  )}
-                </form>
-
-                {/* Блок: этажи и аудитории */}
-                <div className="space-y-4">
-                  <Label className="text-base text-[#333333]">Этажи и аудитории</Label>
-                  {treeFloors.map((floor, floorIdx) => {
-                    const floorId = floor.id ?? 0;
-                    return (
-                      <div
-                        key={floorId || `new-${floorIdx}`}
-                        className="rounded-lg border border-[#cccccc] bg-[#efefef] p-3 space-y-3"
-                      >
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-medium text-[#333333]">Этаж</span>
-                          <div className="flex items-center gap-0 rounded border border-[#cccccc] bg-[#f6f6f6]">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 rounded-r-none"
-                              onClick={() => setTreeFloors((prev) => prev.map((f) => (f.id === floorId ? { ...f, number: f.number - 1 } : f)))}
-                              disabled={updateFloorMutation.isPending}
-                            >
-                              −
-                            </Button>
-                            <span className="min-w-8 text-center text-sm tabular-nums">{floor.number}</span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 rounded-l-none"
-                              onClick={() => setTreeFloors((prev) => prev.map((f) => (f.id === floorId ? { ...f, number: f.number + 1 } : f)))}
-                              disabled={updateFloorMutation.isPending}
-                            >
-                              +
-                            </Button>
-                          </div>
-                          {floorId > 0 && (
-                            <>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleSaveFloorNumber(floorId, floor.number)}
-                                disabled={updateFloorMutation.isPending}
-                              >
-                                Сохранить
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="text-destructive hover:bg-destructive/10"
-                                onClick={() => {
-                                  if (window.confirm(`Удалить этаж ${floor.number}?`)) deleteFloorMutation.mutate(floorId);
-                                }}
-                                disabled={deleteFloorMutation.isPending}
-                              >
-                                Удалить
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                        <div className="pl-2 space-y-2">
-                          <span className="text-xs text-muted-foreground">Аудитории:</span>
-                          {floor.classrooms.map((room, roomIdx) => {
-                            const roomId = room.id ?? 0;
-                            return (
-                              <div key={roomId || roomIdx} className="flex items-center gap-2">
-                                <Input
-                                  value={room.name}
-                                  onChange={(e) =>
-                                    setTreeFloors((prev) =>
-                                      prev.map((f) =>
-                                        f.id === floorId
-                                          ? { ...f, classrooms: f.classrooms.map((r, i) => (i === roomIdx ? { ...r, name: e.target.value } : r)) }
-                                          : f
-                                      )
-                                    )
-                                  }
-                                  className="h-7 text-sm flex-1 max-w-[180px]"
-                                  maxLength={50}
-                                />
-                                {roomId > 0 && (
-                                  <>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-7 px-2"
-                                      onClick={() => handleSaveClassroomName(roomId, room.name)}
-                                      disabled={updateClassroomMutation.isPending}
-                                    >
-                                      Сохр.
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-7 w-7 p-0 text-destructive"
-                                      onClick={() => {
-                                        if (window.confirm(`Удалить «${room.name}»?`)) deleteClassroomMutation.mutate(roomId);
-                                      }}
-                                      disabled={deleteClassroomMutation.isPending}
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </>
-                                )}
-                              </div>
-                            );
-                          })}
-                          {addingClassroomForFloorId === floorId ? (
-                            <div className="flex items-center gap-2">
-                              <Input
-                                value={newClassroomNameInModal}
-                                onChange={(e) => setNewClassroomNameInModal(e.target.value)}
-                                placeholder="Название"
-                                className="h-7 text-sm max-w-[180px]"
-                                maxLength={50}
-                                autoFocus
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    const name = newClassroomNameInModal.trim();
-                                    if (name) {
-                                      createClassroomMutation.mutate({ floorId, name });
-                                      setNewClassroomNameInModal("");
-                                      setAddingClassroomForFloorId(null);
-                                    }
-                                  }
-                                  if (e.key === "Escape") setAddingClassroomForFloorId(null);
-                                }}
-                              />
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={() => {
-                                  const name = newClassroomNameInModal.trim();
-                                  if (name) {
-                                    createClassroomMutation.mutate({ floorId, name });
-                                    setNewClassroomNameInModal("");
-                                    setAddingClassroomForFloorId(null);
-                                  }
-                                }}
-                                disabled={!newClassroomNameInModal.trim() || createClassroomMutation.isPending}
-                              >
-                                OK
-                              </Button>
-                              <Button type="button" size="sm" variant="ghost" onClick={() => setAddingClassroomForFloorId(null)}>
-                                Отмена
-                              </Button>
-                            </div>
-                          ) : (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="border-[#b5a3fa] text-[#836be1] hover:bg-[#f4f1fe]"
-                              onClick={() => {
-                                setAddingClassroomForFloorId(floorId);
-                                setNewClassroomNameInModal("");
-                              }}
-                              disabled={createClassroomMutation.isPending}
-                            >
-                              <Plus className="h-3 w-3 mr-1" />
-                              Аудитория
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {addingFloorInModal ? (
-                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#b5a3fa] bg-[#f4f1fe] p-2">
-                      <span className="text-sm text-[#836be1]">Номер этажа:</span>
-                      <div className="flex items-center gap-0 rounded border border-[#b5a3fa] bg-white">
-                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setFloorNumberToAddInModal((n) => n - 1)}>
-                          −
-                        </Button>
-                        <span className="min-w-8 text-center text-sm tabular-nums">{floorNumberToAddInModal}</span>
-                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setFloorNumberToAddInModal((n) => n + 1)}>
-                          +
-                        </Button>
-                      </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="bg-[#836be1]"
-                        onClick={() => {
-                          createFloorMutation.mutate({ buildingId, number: floorNumberToAddInModal });
-                          setAddingFloorInModal(false);
-                        }}
-                        disabled={createFloorMutation.isPending}
-                      >
-                        Создать
-                      </Button>
-                      <Button type="button" size="sm" variant="ghost" onClick={() => setAddingFloorInModal(false)}>
-                        Отмена
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="border-[#b5a3fa] text-[#836be1] hover:bg-[#f4f1fe]"
-                      onClick={() => {
-                        setAddingFloorInModal(true);
-                        const next = treeFloors.length === 0 ? 0 : Math.max(...treeFloors.map((f) => f.number)) + 1;
-                        setFloorNumberToAddInModal(next);
-                      }}
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Этаж
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <DialogFooter className="border-t pt-4 mt-4 shrink-0">
-                <Button type="button" variant="outline" onClick={() => setTreeModalOpen(false)} className="h-8 text-base border-[#cccccc] text-[#333333]">
-                  Закрыть
-                </Button>
-              </DialogFooter>
-            </EntityEditSidepage>
+              onOpenChange={setTreeModalOpen}
+              buildingId={buildingId}
+              buildingName={building.name ?? ""}
+              buildingDetail={buildingDetail}
+            />
           </>
         )}
       </CardContent>
@@ -781,7 +472,7 @@ export function BuildingsContent() {
 
       {isError && (
         <p className="text-sm text-destructive" role="alert">
-          {error instanceof Error ? error.message : "Не удалось загрузить список зданий"}
+          {getApiErrorMessage(error, "Не удалось загрузить список зданий")}
         </p>
       )}
 
