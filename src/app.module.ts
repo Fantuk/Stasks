@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { LoggerModule } from 'nestjs-pino';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { AuthModule } from 'src/auth/auth.module';
 import { UserModule } from 'src/user/application/user.module';
@@ -25,6 +26,40 @@ import { ScheduleModule } from './schedule/application/schedule.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+    }),
+    // Единый Pino: JSON в проде, pretty локально; redact секретов; без лишних access-логов на /docs
+    LoggerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const isProd = process.env.NODE_ENV === 'production';
+        const level = config.get<string>('LOG_LEVEL') ?? (isProd ? 'info' : 'debug');
+        return {
+          pinoHttp: {
+            level,
+            // Не писать Authorization и Cookie в логах
+            redact: ['req.headers.authorization', 'req.headers.cookie'],
+            autoLogging: {
+              ignore: (req: { url?: string }) => {
+                const u = req.url ?? '';
+                return u === '/docs' || u.startsWith('/docs/');
+              },
+            },
+            ...(isProd
+              ? {}
+              : {
+                  transport: {
+                    target: 'pino-pretty',
+                    options: {
+                      singleLine: true,
+                      colorize: true,
+                      translateTime: 'SYS:standard',
+                    },
+                  },
+                }),
+          },
+        };
+      },
     }),
     PrismaModule,
     AuthModule,
