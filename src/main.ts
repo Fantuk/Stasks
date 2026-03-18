@@ -1,7 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { AppModule } from './app.module';
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
+import { Logger } from 'nestjs-pino';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from '@fastify/helmet';
 import compress from '@fastify/compress';
@@ -9,12 +10,14 @@ import rateLimit from '@fastify/rate-limit';
 import fastifyCookie from '@fastify/cookie';
 
 async function bootstrap() {
+  // logger: false — HTTP-логи только через nestjs-pino (единый формат с приложением)
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({
-      logger: true,
-    }),
+    new FastifyAdapter({ logger: false }),
+    { bufferLogs: true },
   );
+  const logger = app.get(Logger);
+  app.useLogger(logger);
 
   await app.register(fastifyCookie);
   await app.register(helmet);
@@ -72,6 +75,6 @@ async function bootstrap() {
   const port = process.env.PORT || 3001;
   await app.listen(port, '0.0.0.0');
 
-  Logger.log(`Application is running on: ${port}`);
+  logger.log(`Application is running on: ${port}`);
 }
 bootstrap();
