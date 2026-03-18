@@ -116,7 +116,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       };
     }
 
-    this.logger.error('Неожиданная ошибка', exception);
+    // Детальный лог — в logError при status 500 (без дублирования)
     return {
       status: HttpStatus.INTERNAL_SERVER_ERROR,
       message: 'Произошла ошибка. Попробуйте позже.',
@@ -126,15 +126,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
   private logError(exception: unknown, request: FastifyRequest, status: number): void {
     const { method, url } = request;
+    // Корреляция с access-логом pino-http (req.id задаётся middleware)
+    const reqId = request.id;
     const message = exception instanceof HttpException ? exception.message : 'Неожиданная ошибка';
+    const prefix = reqId != null ? `[reqId=${reqId}] ` : '';
 
     if (status >= 500) {
       this.logger.error(
-        `Ошибка ${status}: ${message} - ${method} ${url}`,
+        `${prefix}Ошибка ${status}: ${message} - ${method} ${url}`,
         exception instanceof Error ? exception.stack : String(exception),
       );
     } else if (status >= 400) {
-      this.logger.warn(`Ошибка ${status}: ${message} - ${method} ${url}`);
+      this.logger.warn(`${prefix}Ошибка ${status}: ${message} - ${method} ${url}`);
     }
   }
 }
