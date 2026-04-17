@@ -5,6 +5,7 @@ import {
   IsDateString,
   IsArray,
   IsOptional,
+  IsEnum,
   Min,
   ValidateIf,
   Validate,
@@ -14,6 +15,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ScheduleTemplateOrLessonConstraint } from './create-schedule.dto';
+import { ScheduleClassType } from '@prisma/client';
 
 /** Нужен либо непустой dates, либо оба dateFrom и dateTo */
 @ValidatorConstraint({ name: 'bulkScheduleDates', async: false })
@@ -63,6 +65,16 @@ export class BulkCreateScheduleDto {
   @IsInt({ message: 'ID аудитории должен быть целым числом' })
   @Min(1, { message: 'ID аудитории должен быть не меньше 1' })
   classroomId?: number | null;
+
+  @ApiPropertyOptional({
+    enum: ScheduleClassType,
+    example: ScheduleClassType.EXAM,
+    description:
+      'Тип занятия. Для ONLINE и DISTANCE аудитория не указывается (classroomId должен быть null).',
+  })
+  @IsOptional()
+  @IsEnum(ScheduleClassType, { message: 'type может быть только ONLINE, TEST, EXAM или DISTANCE' })
+  type?: ScheduleClassType;
 
   @ApiPropertyOptional({
     example: 1,
