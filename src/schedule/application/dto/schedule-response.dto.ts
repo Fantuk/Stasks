@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ScheduleClassType } from '@prisma/client';
 
 /** Время слота из шаблона звонков (для ответа) */
 export class BellTemplateSlotDto {
@@ -76,6 +77,14 @@ export class ScheduleResponseDto {
 
   @ApiPropertyOptional({ example: 1, description: 'ID аудитории (null, если аудитория удалена)' })
   classroomId: number | null;
+
+  @ApiPropertyOptional({
+    enum: ScheduleClassType,
+    example: ScheduleClassType.DISTANCE,
+    nullable: true,
+    description: 'Опциональный тип занятия',
+  })
+  type?: ScheduleClassType | null;
 
   @ApiProperty({ example: 1, description: 'ID шаблона звонков' })
   bellTemplateId: number;
