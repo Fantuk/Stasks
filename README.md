@@ -402,7 +402,8 @@ Bulk-сценарии:
   "subjectId": 1,
   "groupId": 1,
   "teacherId": 1,
-  "classroomId": 1,
+  "type": "ONLINE",
+  "classroomId": null,
   "bellTemplateId": 1,
   "lessonNumber": 1,
   "scheduleDate": "2025-03-05T00:00:00.000Z",
@@ -413,7 +414,9 @@ Bulk-сценарии:
 Валидация шаблона/урока:
 
 - либо `bellTemplateId`, либо `lessonNumber` (если bellTemplateId не указан)
-- `classroomId` можно не указывать или передавать `null` для удаленного занятия
+- `type` опционален: `ONLINE`, `TEST`, `EXAM`, `DISTANCE`
+- для `ONLINE` и `DISTANCE` поле `classroomId` должно быть `null` (занятие без аудитории)
+- для `TEST`, `EXAM` или `type = null` аудитория допускается по общим правилам
 - `scheduleSlotId` создает подгруппу к существующему занятию
 
 Bulk создание `POST /api/schedule/bulk` (BulkCreateScheduleDto):
