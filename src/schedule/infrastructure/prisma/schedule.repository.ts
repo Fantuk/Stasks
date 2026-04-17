@@ -30,6 +30,7 @@ const scheduleSelect = {
   groupId: true,
   teacherId: true,
   classroomId: true,
+  type: true,
   bellTemplateId: true,
   scheduleDate: true,
   scheduleSlotId: true,
@@ -71,6 +72,7 @@ export class ScheduleRepository implements IScheduleRepository {
     groupId: number;
     teacherId: number;
     classroomId: number | null;
+    type: 'ONLINE' | 'TEST' | 'EXAM' | 'DISTANCE' | null;
     bellTemplateId: number;
     scheduleDate: Date;
     scheduleSlotId: string | null;
@@ -82,6 +84,7 @@ export class ScheduleRepository implements IScheduleRepository {
       groupId: raw.groupId,
       teacherId: raw.teacherId,
       classroomId: raw.classroomId,
+      type: raw.type,
       bellTemplateId: raw.bellTemplateId,
       scheduleDate: raw.scheduleDate,
       scheduleSlotId: raw.scheduleSlotId,
@@ -96,6 +99,7 @@ export class ScheduleRepository implements IScheduleRepository {
         groupId: data.groupId,
         teacherId: data.teacherId,
         classroomId: data.classroomId ?? undefined,
+            type: data.type ?? undefined,
         bellTemplateId: data.bellTemplateId,
         scheduleDate: data.scheduleDate,
         scheduleSlotId: data.scheduleSlotId ?? undefined,
@@ -118,6 +122,7 @@ export class ScheduleRepository implements IScheduleRepository {
             groupId: item.groupId,
             teacherId: item.teacherId,
             classroomId: item.classroomId ?? undefined,
+            type: item.type ?? undefined,
             bellTemplateId: item.bellTemplateId,
             scheduleDate: item.scheduleDate,
             scheduleSlotId: item.scheduleSlotId ?? undefined,
@@ -195,6 +200,7 @@ export class ScheduleRepository implements IScheduleRepository {
         groupId: r.groupId,
         teacherId: r.teacherId,
         classroomId: r.classroomId,
+        type: r.type,
         bellTemplateId: r.bellTemplateId,
         scheduleDate: r.scheduleDate,
         scheduleSlotId: r.scheduleSlotId,
@@ -218,6 +224,11 @@ export class ScheduleRepository implements IScheduleRepository {
       (updateData as { classroomId?: number | null }).classroomId = null;
     } else if (data.classroomId !== undefined) {
       updateData.classroom = { connect: { id: data.classroomId } };
+    }
+    if (data.type === null) {
+      updateData.type = null;
+    } else if (data.type !== undefined) {
+      updateData.type = data.type;
     }
     if (data.bellTemplateId !== undefined) {
       updateData.bellTemplate = { connect: { id: data.bellTemplateId } };
@@ -268,6 +279,7 @@ export class ScheduleRepository implements IScheduleRepository {
         groupId: r.groupId,
         teacherId: r.teacherId,
         classroomId: r.classroomId,
+        type: r.type,
         bellTemplateId: r.bellTemplateId,
         scheduleDate: r.scheduleDate,
         scheduleSlotId: r.scheduleSlotId,
@@ -304,6 +316,7 @@ export class ScheduleRepository implements IScheduleRepository {
         groupId: r.groupId,
         teacherId: r.teacherId,
         classroomId: r.classroomId,
+        type: r.type,
         bellTemplateId: r.bellTemplateId,
         scheduleDate: r.scheduleDate,
         scheduleSlotId: r.scheduleSlotId,
@@ -326,6 +339,7 @@ export class ScheduleRepository implements IScheduleRepository {
         groupId: r.groupId,
         teacherId: r.teacherId,
         classroomId: r.classroomId,
+        type: r.type,
         bellTemplateId: r.bellTemplateId,
         scheduleDate: r.scheduleDate,
         scheduleSlotId: r.scheduleSlotId,
