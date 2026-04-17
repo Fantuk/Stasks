@@ -219,6 +219,7 @@ model Schedule {
   groupId         Int          @map("group_id")
   teacherId       Int          @map("teacher_id")
   classroomId     Int?         @map("classroom_id")
+  type            ScheduleClassType?
   bellTemplateId  Int          @map("bell_template_id")
   scheduleDate    DateTime     @map("schedule_date")
   // Слот занятия: записи с одним scheduleSlotId — одно занятие (подгруппы), null = одно занятие без подгрупп
@@ -242,4 +243,11 @@ model Schedule {
 enum ScheduleType {
   date
   weekday
+}
+
+enum ScheduleClassType {
+  ONLINE
+  TEST
+  EXAM
+  DISTANCE
 }
