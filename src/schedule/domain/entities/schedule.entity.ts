@@ -6,6 +6,7 @@ export type SchedulePersistence = {
   groupId: number;
   teacherId: number;
   classroomId: number | null;
+  type: 'ONLINE' | 'TEST' | 'EXAM' | 'DISTANCE' | null;
   bellTemplateId: number;
   scheduleDate: Date;
   /** Слот занятия: записи с одним scheduleSlotId — одно занятие (подгруппы); null = без подгрупп */
@@ -21,6 +22,7 @@ export class Schedule {
     public readonly groupId: number,
     public readonly teacherId: number,
     public readonly classroomId: number | null,
+    public readonly type: 'ONLINE' | 'TEST' | 'EXAM' | 'DISTANCE' | null,
     public readonly bellTemplateId: number,
     public readonly scheduleDate: Date,
     public readonly scheduleSlotId: string | null,
@@ -34,6 +36,7 @@ export class Schedule {
       params.groupId,
       params.teacherId,
       params.classroomId ?? null,
+      params.type ?? null,
       params.bellTemplateId,
       params.scheduleDate,
       params.scheduleSlotId ?? null,
@@ -48,6 +51,7 @@ export class Schedule {
       raw.groupId,
       raw.teacherId,
       raw.classroomId,
+      raw.type ?? null,
       raw.bellTemplateId,
       raw.scheduleDate,
       raw.scheduleSlotId ?? null,
@@ -62,6 +66,7 @@ export class Schedule {
       groupId: this.groupId,
       teacherId: this.teacherId,
       classroomId: this.classroomId,
+      type: this.type,
       bellTemplateId: this.bellTemplateId,
       scheduleDate: this.scheduleDate,
       scheduleSlotId: this.scheduleSlotId,
@@ -76,6 +81,7 @@ export class Schedule {
       groupId: this.groupId,
       teacherId: this.teacherId,
       classroomId: this.classroomId,
+      type: this.type,
       bellTemplateId: this.bellTemplateId,
       scheduleDate: this.scheduleDate,
       scheduleSlotId: this.scheduleSlotId,
