@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsInt, IsDateString, Min, ValidateIf } from 'class-validator';
+import { IsOptional, IsInt, IsDateString, Min, ValidateIf, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ScheduleClassType } from '@prisma/client';
 
 /** DTO обновления занятия в расписании (все поля опциональны) */
 export class UpdateScheduleDto {
@@ -33,6 +34,15 @@ export class UpdateScheduleDto {
   @IsInt()
   @Min(1)
   classroomId?: number | null;
+
+  @ApiPropertyOptional({
+    enum: ScheduleClassType,
+    example: ScheduleClassType.TEST,
+    description: 'Тип занятия. ONLINE и DISTANCE разрешены только без аудитории.',
+  })
+  @IsOptional()
+  @IsEnum(ScheduleClassType, { message: 'type может быть только ONLINE, TEST, EXAM или DISTANCE' })
+  type?: ScheduleClassType | null;
 
   @ApiPropertyOptional({ example: 1, description: 'ID шаблона звонков' })
   @IsOptional()
