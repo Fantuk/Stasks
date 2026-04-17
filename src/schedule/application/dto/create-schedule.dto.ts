@@ -4,6 +4,7 @@ import {
   IsInt,
   IsDateString,
   IsOptional,
+  IsEnum,
   IsString,
   IsUUID,
   Min,
@@ -14,6 +15,7 @@ import {
   ValidationArguments,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ScheduleClassType } from '@prisma/client';
 
 /** Нужен либо bellTemplateId, либо lessonNumber (для авто-подбора шаблона). При добавлении подгруппы (scheduleSlotId) шаблон берётся из слота — проверка не требуется. */
 @ValidatorConstraint({ name: 'scheduleTemplateOrLesson', async: false })
@@ -70,6 +72,16 @@ export class CreateScheduleDto {
   @IsInt({ message: 'ID аудитории должен быть целым числом' })
   @Min(1, { message: 'ID аудитории должен быть не меньше 1' })
   classroomId?: number | null;
+
+  @ApiPropertyOptional({
+    enum: ScheduleClassType,
+    example: ScheduleClassType.ONLINE,
+    description:
+      'Тип занятия. ONLINE и DISTANCE проводятся без аудитории (classroomId должен быть null).',
+  })
+  @IsOptional()
+  @IsEnum(ScheduleClassType, { message: 'type может быть только ONLINE, TEST, EXAM или DISTANCE' })
+  type?: ScheduleClassType;
 
   @ApiPropertyOptional({
     example: 1,
