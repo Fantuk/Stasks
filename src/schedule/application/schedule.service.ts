@@ -26,6 +26,7 @@ import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { BulkCreateScheduleDto } from './dto/bulk-create-schedule.dto';
 import type { PaginatedResult } from 'src/common/dto/pagination.dto';
 import { SCHEDULE_EXPAND_VALUES, type ScheduleExpandOption } from './dto/schedule-query.dto';
+import { ScheduleClassType } from '@prisma/client';
 
 /** Объединяет календарную дату с временем из другого Date (часы/минуты) в UTC */
 function mergeDateAndTime(dateOnly: Date, timeSource: Date): Date {
@@ -111,6 +112,22 @@ export class ScheduleService {
     private readonly teacherService: TeacherService,
     private readonly classroomService: ClassroomService,
   ) {}
+
+  /**
+   * ONLINE и DISTANCE проводятся без аудитории.
+   * TEST/EXAM/null допускают аудиторию по общим правилам.
+   */
+  private validateTypeAndClassroom(
+    type: ScheduleClassType | null | undefined,
+    classroomId: number | null,
+  ): void {
+    const remoteTypes: ScheduleClassType[] = [ScheduleClassType.ONLINE, ScheduleClassType.DISTANCE];
+    if (type != null && remoteTypes.includes(type) && classroomId != null) {
+      throw new BadRequestException(
+        'Для типов ONLINE и DISTANCE аудитория не указывается (classroomId должен быть null)',
+      );
+    }
+  }
 
   /**
    * Подбирает шаблон звонков по группе, дате и номеру урока.
@@ -279,6 +296,7 @@ export class ScheduleService {
     groupId: number;
     teacherId: number;
     classroomId: number | null;
+    type?: ScheduleClassType | null;
     bellTemplateId?: number;
     lessonNumber?: number;
     scheduleDate: Date;
@@ -289,6 +307,7 @@ export class ScheduleService {
     groupId: number;
     teacherId: number;
     classroomId: number | null;
+    type: ScheduleClassType | null;
     bellTemplateId: number;
     scheduleDate: Date;
     timeRanges: ScheduleTimeRange[];
@@ -298,10 +317,12 @@ export class ScheduleService {
       groupId,
       teacherId,
       classroomId,
+      type,
       scheduleDate,
       institutionId,
       excludeScheduleId,
     } = params;
+    this.validateTypeAndClassroom(type, classroomId);
     let bellTemplateId = params.bellTemplateId;
     if (bellTemplateId == null && params.lessonNumber != null) {
       bellTemplateId = await this.resolveBellTemplateId(
@@ -351,6 +372,7 @@ export class ScheduleService {
       groupId,
       teacherId,
       classroomId,
+      type: type ?? null,
       bellTemplateId,
       scheduleDate,
       timeRanges,
@@ -362,6 +384,7 @@ export class ScheduleService {
     let scheduleSlotId: string;
     let effectiveDate = scheduleDate;
     let effectiveBellTemplateId: number | undefined = dto.bellTemplateId ?? undefined;
+    let effectiveType: ScheduleClassType | null | undefined = dto.type;
 
     if (dto.scheduleSlotId) {
       // Добавление подгруппы к существующему занятию: проверяем слот и совпадение параметров
@@ -398,9 +421,16 @@ export class ScheduleService {
           'В этом занятии уже есть подгруппа с таким преподавателем и аудиторией.',
         );
       }
+      const slotType = first.type;
+      if (dto.type !== undefined && dto.type !== slotType) {
+        throw new BadRequestException(
+          'Тип занятия подгруппы должен совпадать с типом существующего занятия в слоте.',
+        );
+      }
       scheduleSlotId = dto.scheduleSlotId;
       effectiveDate = first.scheduleDate;
       effectiveBellTemplateId = first.bellTemplateId;
+      effectiveType = slotType;
     } else {
       scheduleSlotId = randomUUID();
     }
@@ -410,6 +440,7 @@ export class ScheduleService {
       groupId: dto.groupId,
       teacherId: dto.teacherId,
       classroomId: dto.classroomId ?? null,
+      type: effectiveType ?? null,
       bellTemplateId: effectiveBellTemplateId,
       lessonNumber: effectiveBellTemplateId == null ? (dto.lessonNumber ?? undefined) : undefined,
       scheduleDate: effectiveDate,
@@ -422,6 +453,7 @@ export class ScheduleService {
       groupId: ctx.groupId,
       teacherId: ctx.teacherId,
       classroomId: ctx.classroomId,
+      type: ctx.type,
       bellTemplateId: ctx.bellTemplateId,
       scheduleDate: ctx.scheduleDate,
       scheduleSlotId,
@@ -601,6 +633,7 @@ export class ScheduleService {
     const groupId = dto.groupId ?? existing.groupId;
     const teacherId = dto.teacherId ?? existing.teacherId;
     const classroomId = dto.classroomId ?? existing.classroomId;
+    const type = dto.type !== undefined ? dto.type : existing.type;
     const scheduleDate = dto.scheduleDate ? new Date(dto.scheduleDate) : existing.scheduleDate;
     const bellTemplateId = dto.bellTemplateId ?? existing.bellTemplateId ?? undefined;
 
@@ -609,6 +642,7 @@ export class ScheduleService {
       groupId,
       teacherId,
       classroomId,
+      type,
       bellTemplateId: bellTemplateId ?? undefined,
       lessonNumber: dto.lessonNumber ?? undefined,
       scheduleDate,
@@ -621,6 +655,7 @@ export class ScheduleService {
       groupId: ctx.groupId,
       teacherId: ctx.teacherId,
       classroomId: ctx.classroomId,
+      type: ctx.type,
       bellTemplateId: ctx.bellTemplateId,
       scheduleDate: ctx.scheduleDate,
     });
@@ -651,6 +686,7 @@ export class ScheduleService {
       groupId: dto.groupId,
       teacherId: dto.teacherId,
       classroomId: dto.classroomId ?? null,
+      type: dto.type ?? null,
       bellTemplateId: dto.bellTemplateId ?? undefined,
       lessonNumber: dto.lessonNumber ?? undefined,
       scheduleDate: dates[0],
@@ -683,6 +719,7 @@ export class ScheduleService {
           groupId: ctx.groupId,
           teacherId: ctx.teacherId,
           classroomId: ctx.classroomId,
+          type: ctx.type,
           bellTemplateId: ctx.bellTemplateId,
           scheduleDate,
           scheduleSlotId: randomUUID(),
